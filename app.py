@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -95,8 +95,9 @@ HTML_TEMPLATE = """
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
         .card { background-color: #1e1e1e; border: 1px solid #333; color: #fff; }
-        .in-phase-bg { border-left: 5px solid #ff4757; }
-        .upcoming-bg { border-left: 5px solid #2ed573; }
+        .boss-group-card { border-top: 4px solid #ffca28; background-color: #1a1a1a; }
+        .badge-time { font-size: 0.85rem; }
+        .sub-card { background-color: #252525; border: 1px solid #444; border-radius: 6px; }
     </style>
 </head>
 <body class="container py-4">
@@ -112,23 +113,28 @@ HTML_TEMPLATE = """
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเวลาเกิดก่อน</h4>
-    <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
-        {% for item in in_phase_list_sorted %}
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase)</h4>
+    <div class="row row-cols-1 g-3 mb-4">
+        {% for group in in_phase_groups %}
         <div class="col">
-            <div class="card p-3 in-phase-bg">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="text-danger m-0">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <div class="mt-1">
-                            <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
+            <div class="card p-3 boss-group-card" style="border-top-color: #ff4757;">
+                <h4 class="text-warning mb-3">🔥 กลุ่มบอส {{ group.boss_id }}</h4>
+                <div class="row row-cols-1 row-cols-md-2 g-2">
+                    {% for item in group.items %}
+                    <div class="col">
+                        <div class="p-3 sub-card d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="text-danger m-0">Ch.{{ item.ch }}</h5>
+                                <span class="badge bg-danger my-1 d-inline-block">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
+                                <small class="text-muted d-block">เวลาเกิด: {{ item.t_str[11:16] }} น.</small>
+                            </div>
+                            <div>
+                                <button onclick="killBoss('{{ group.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success me-1">⚔️ ตายแล้ว</button>
+                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                            </div>
                         </div>
-                        <small class="text-muted d-block mt-1">เวลาเกิด: {{ item.t_str[11:16] }} น.</small>
                     </div>
-                    <div>
-                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
-                        <a href="/delete/{{ item.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
-                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -137,20 +143,26 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเวลาเกิดใกล้สุด</h4>
-    <div class="row row-cols-1 row-cols-md-2 g-3">
-        {% for key, t_str in active_spawns_sorted %}
-        {% set boss_id, ch = key.split('-') %}
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming)</h4>
+    <div class="row row-cols-1 g-3">
+        {% for group in upcoming_groups %}
         <div class="col">
-            <div class="card p-3 upcoming-bg">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="text-success m-0">⏳ บอส {{ boss_id }} [Ch.{{ ch }}]</h5>
-                        <small class="text-light">รอบถัดไป: <b class="text-warning">{{ t_str[11:16] }} น.</b></small>
+            <div class="card p-3 boss-group-card" style="border-top-color: #2ed573;">
+                <h4 class="text-warning mb-3">⏳ กลุ่มบอส {{ group.boss_id }}</h4>
+                <div class="row row-cols-1 row-cols-md-2 g-2">
+                    {% for item in group.items %}
+                    <div class="col">
+                        <div class="p-3 sub-card d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="text-success m-0">Ch.{{ item.ch }}</h5>
+                                <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }} น.</b></small>
+                            </div>
+                            <div>
+                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <a href="/delete/{{ boss_id }}/{{ ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
-                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -206,7 +218,8 @@ def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     
-    in_phase_list = []
+    # --- 1. จัดกลุ่มบอสในเฟส (In Phase) ---
+    in_phase_dict = {}
     for key, t_str in boss_db["in_phase"].items():
         boss_id, ch = key.split('-')
         try:
@@ -218,24 +231,60 @@ def index():
             spawn_time = now
             minutes_passed = 0
             
-        in_phase_list.append({
-            "boss_id": boss_id,
+        item = {
             "ch": ch,
             "t_str": t_str,
-            "spawn_time_obj": spawn_time, # เก็บวัตถุเวลาไว้ใช้จัดเรียง
+            "spawn_time_obj": spawn_time,
             "minutes_passed": minutes_passed
+        }
+        if boss_id not in in_phase_dict:
+            in_phase_dict[boss_id] = []
+        in_phase_dict[boss_id].append(item)
+        
+    # จัดเรียงภายในกลุ่ม (ตัวเกิดก่อนอยู่บน) และจัดเรียงกลุ่ม (กลุ่มที่มีตัวเกิดเก่าสุดอยู่บนสุด)
+    in_phase_groups = []
+    for b_id, items in in_phase_dict.items():
+        sorted_items = sorted(items, key=lambda x: x["spawn_time_obj"])
+        in_phase_groups.append({
+            "boss_id": b_id,
+            "items": sorted_items,
+            "min_time": sorted_items[0]["spawn_time_obj"]
         })
-    
-    # 👑 จัดเรียงบอสในเฟส: เอาตัวที่เกิดก่อน (spawn_time เก่าที่สุด) ขึ้นมาไว้ข้างบน
-    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
-    
-    # จัดเรียงบอสรอเกิด: เอาตัวที่กำลังจะเกิดเร็วที่สุดขึ้นก่อน
-    sorted_active = sorted(boss_db["active_spawns"].items(), key=lambda x: x[1])
+    in_phase_groups_sorted = sorted(in_phase_groups, key=lambda x: x["min_time"])
+
+    # --- 2. จัดกลุ่มบอสรอเกิด (Upcoming) ---
+    upcoming_dict = {}
+    for key, t_str in boss_db["active_spawns"].items():
+        boss_id, ch = key.split('-')
+        try:
+            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+        except:
+            spawn_time = now
+            
+        item = {
+            "ch": ch,
+            "t_str": t_str,
+            "spawn_time_obj": spawn_time
+        }
+        if boss_id not in upcoming_dict:
+            upcoming_dict[boss_id] = []
+        upcoming_dict[boss_id].append(item)
+        
+    # จัดเรียงภายในกลุ่ม (ตัวเกิดไวสุดอยู่บน) และจัดเรียงกลุ่ม (กลุ่มที่กำลังจะเกิดเร็วที่สุดขึ้นก่อน)
+    upcoming_groups = []
+    for b_id, items in upcoming_dict.items():
+        sorted_items = sorted(items, key=lambda x: x["spawn_time_obj"])
+        upcoming_groups.append({
+            "boss_id": b_id,
+            "items": sorted_items,
+            "min_time": sorted_items[0]["spawn_time_obj"]
+        })
+    upcoming_groups_sorted = sorted(upcoming_groups, key=lambda x: x["min_time"])
     
     return render_template_string(
         HTML_TEMPLATE, 
-        in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=sorted_active
+        in_phase_groups=in_phase_groups_sorted, 
+        upcoming_groups=upcoming_groups_sorted
     )
 
 @app.route('/add', methods=['POST'])
