@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -96,7 +96,6 @@ HTML_TEMPLATE = """
         body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
         .card { background-color: #1e1e1e; border: 1px solid #333; color: #fff; }
         .boss-group-card { border-top: 4px solid #ffca28; background-color: #1a1a1a; }
-        .badge-time { font-size: 0.85rem; }
         .sub-card { background-color: #252525; border: 1px solid #444; border-radius: 6px; }
     </style>
 </head>
@@ -220,28 +219,27 @@ def index():
     
     # --- 1. จัดกลุ่มบอสในเฟส (In Phase) ---
     in_phase_dict = {}
-    for key, t_str in boss_db["in_phase"].items():
-        boss_id, ch = key.split('-')
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            diff = now - spawn_time
-            minutes_passed = int(diff.total_seconds() // 60)
-            if minutes_passed < 0: minutes_passed = 0
-        except:
-            spawn_time = now
-            minutes_passed = 0
-            
-        item = {
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "minutes_passed": minutes_passed
-        }
-        if boss_id not in in_phase_dict:
-            in_phase_dict[boss_id] = []
-        in_phase_dict[boss_id].append(item)
+    if boss_db.get("in_phase"):
+        for key, t_str in boss_db["in_phase"].items():
+            try:
+                boss_id, ch = key.split('-')
+                spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+                diff = now - spawn_time
+                minutes_passed = int(diff.total_seconds() // 60)
+                if minutes_passed < 0: minutes_passed = 0
+            except:
+                continue
+                
+            item = {
+                "ch": ch,
+                "t_str": t_str,
+                "spawn_time_obj": spawn_time,
+                "minutes_passed": minutes_passed
+            }
+            if boss_id not in in_phase_dict:
+                in_phase_dict[boss_id] = []
+            in_phase_dict[boss_id].append(item)
         
-    # จัดเรียงภายในกลุ่ม (ตัวเกิดก่อนอยู่บน) และจัดเรียงกลุ่ม (กลุ่มที่มีตัวเกิดเก่าสุดอยู่บนสุด)
     in_phase_groups = []
     for b_id, items in in_phase_dict.items():
         sorted_items = sorted(items, key=lambda x: x["spawn_time_obj"])
@@ -254,23 +252,23 @@ def index():
 
     # --- 2. จัดกลุ่มบอสรอเกิด (Upcoming) ---
     upcoming_dict = {}
-    for key, t_str in boss_db["active_spawns"].items():
-        boss_id, ch = key.split('-')
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-        except:
-            spawn_time = now
-            
-        item = {
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time
-        }
-        if boss_id not in upcoming_dict:
-            upcoming_dict[boss_id] = []
-        upcoming_dict[boss_id].append(item)
+    if boss_db.get("active_spawns"):
+        for key, t_str in boss_db["active_spawns"].items():
+            try:
+                boss_id, ch = key.split('-')
+                spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            except:
+                continue
+                
+            item = {
+                "ch": ch,
+                "t_str": t_str,
+                "spawn_time_obj": spawn_time
+            }
+            if boss_id not in upcoming_dict:
+                upcoming_dict[boss_id] = []
+            upcoming_dict[boss_id].append(item)
         
-    # จัดเรียงภายในกลุ่ม (ตัวเกิดไวสุดอยู่บน) และจัดเรียงกลุ่ม (กลุ่มที่กำลังจะเกิดเร็วที่สุดขึ้นก่อน)
     upcoming_groups = []
     for b_id, items in upcoming_dict.items():
         sorted_items = sorted(items, key=lambda x: x["spawn_time_obj"])
