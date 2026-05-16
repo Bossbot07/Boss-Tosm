@@ -1,42 +1,55 @@
-from flask import Flask, render_template_string, jsonify, request
+from flask import Flask, render_template_string, request
 from datetime import datetime, timedelta
+import requests
 import pytz
 import json
 import os
 
 app = Flask(__name__)
-DATA_FILE = "boss_data.json"
+
+# ดึงค่าเชื่อมต่อฐานข้อมูลออนไลน์จากระบบ Cloud Environment
+REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
+REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 BKK_TZ = pytz.timezone('Asia/Bangkok')
 
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
+# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์ (Upstash Redis)
 def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return {
-                    "active_spawns": data.get("active_spawns", {}),
-                    "in_phase": data.get("in_phase", {})
-                }
-        except:
-            pass
+    if not REDIS_URL or not REDIS_TOKEN:
+        print("⚠️ ยังไม่ได้ตั้งค่า UPSTASH_REDIS ใน Environment")
+        return {"active_spawns": {}, "in_phase": {}}
+    
+    try:
+        headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
+        response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers)
+        result = response.json().get("result")
+        if result:
+            data = json.loads(result)
+            return {
+                "active_spawns": data.get("active_spawns", {}),
+                "in_phase": data.get("in_phase", {})
+            }
+    except Exception as e:
+        print(f"❌ โหลดข้อมูลออนไลน์ล้มเหลว: {e}")
     return {"active_spawns": {}, "in_phase": {}}
 
+# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
 def save_data(data):
+    if not REDIS_URL or not REDIS_TOKEN: return
     try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
+        payload = json.dumps(data, ensure_ascii=False)
+        requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload)
     except Exception as e:
-        print(f"❌ บันทึกไฟล์ไม่ได้: {e}")
+        print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
 def update_boss_statuses():
     boss_db = load_data()
     now = get_bkk_now()
     has_change = False
 
-    # 1. เช็คบอสรอเกิด -> ย้ายไป In Phase
     for key, t_str in list(boss_db["active_spawns"].items()):
         try:
             target_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
@@ -46,7 +59,6 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
-    # 2. เช็คบอสในเฟส -> ถ้าเกิน 30 นาทีให้ลบออกอัตโนมัติ
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
