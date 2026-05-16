@@ -75,7 +75,7 @@ def update_boss_statuses():
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            if now >= (spawn_time + timedelta(minutes=30)):
+            if now >= (spawn_time + timedelta(minutes=50)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
         except: continue
