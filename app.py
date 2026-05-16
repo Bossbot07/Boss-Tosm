@@ -7,7 +7,7 @@ import os
 
 app = Flask(__name__)
 
-# ดึงค่าเชื่อมต่อฐานข้อมูลออนไลน์จากระบบ Cloud Environment
+# ดึงค่าเชื่อมต่อจาก Environment ของ Render
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 BKK_TZ = pytz.timezone('Asia/Bangkok')
@@ -15,33 +15,56 @@ BKK_TZ = pytz.timezone('Asia/Bangkok')
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์ (Upstash Redis)
+# ฟังก์ชันดึงข้อมูลแบบปรับปรุงใหม่ ดักจับข้อมูลดิบจาก Upstash ให้ถูกต้อง
 def load_data():
+    default_data = {"active_spawns": {}, "in_phase": {}}
     if not REDIS_URL or not REDIS_TOKEN:
-        print("⚠️ ยังไม่ได้ตั้งค่า UPSTASH_REDIS ใน Environment")
-        return {"active_spawns": {}, "in_phase": {}}
+        print("⚠️ ยังไม่ได้ตั้งค่า UPSTASH_REDIS ใน Environment ของ Render")
+        return default_data
     
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers)
-        result = response.json().get("result")
-        if result:
-            data = json.loads(result)
-            return {
-                "active_spawns": data.get("active_spawns", {}),
-                "in_phase": data.get("in_phase", {})
-            }
+        # วิ่งไปเอาค่าคีย์ชื่อ tosm_boss_db จาก Upstash
+        response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            res_json = response.json()
+            result = res_json.get("result")
+            
+            if result:
+                # แก้ไขปัญหา Upstash ส่งข้อมูลกลับมาซ้อน String 
+                if isinstance(result, str):
+                    try:
+                        data = json.loads(result)
+                    except:
+                        # กันเหนียวถ้ามันไม่ยอมแปลง ให้ถอดรหัสซ้ำอีกรอบ
+                        data = json.loads(json.loads(payload))
+                else:
+                    data = result
+                
+                return {
+                    "active_spawns": data.get("active_spawns", {}),
+                    "in_phase": data.get("in_phase", {})
+                }
+        else:
+            print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลออนไลน์ล้มเหลว: {e}")
-    return {"active_spawns": {}, "in_phase": {}}
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+    return default_data
 
-# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
+# ฟังก์ชันเซฟข้อมูลแบบบีบอัดไม่ให้เพี้ยนระหว่างทาง
 def save_data(data):
     if not REDIS_URL or not REDIS_TOKEN: return
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        payload = json.dumps(data, ensure_ascii=False)
-        requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload)
+        # แปลงข้อความเป็น JSON ดิบธรรมดาเพื่อป้องกันสระภาษาไทยหรือสัญลักษณ์เพี้ยน
+        payload = json.dumps(data)
+        
+        response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
+        if response.status_code == 200:
+            print("✅ บันทึกข้อมูลลง Upstash สำเร็จ!")
+        else:
+            print(f"❌ เซฟไม่สำเร็จ Code: {response.status_code}")
     except Exception as e:
         print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
