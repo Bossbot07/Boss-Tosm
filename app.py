@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -112,9 +112,9 @@ HTML_TEMPLATE = """
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase)</h4>
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเวลาเกิดก่อน</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
-        {% for item in in_phase_list %}
+        {% for item in in_phase_list_sorted %}
         <div class="col">
             <div class="card p-3 in-phase-bg">
                 <div class="d-flex justify-content-between align-items-center">
@@ -137,7 +137,7 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming)</h4>
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเวลาเกิดใกล้สุด</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3">
         {% for key, t_str in active_spawns_sorted %}
         {% set boss_id, ch = key.split('-') %}
@@ -194,8 +194,8 @@ HTML_TEMPLATE = """
             const timeInput = document.getElementById('modal-time-input').value;
             window.location.href = `/kill/${bossId}/${ch}?time_input=${timeInput}`;
         }
-        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 10 วินาที เพื่อให้อัปเดตนาทีที่เข้าเฟสแบบเรียลไทม์
-        setInterval(() => { window.location.reload(); }, 30000);
+        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 10 วินาที
+        setInterval(() => { window.location.reload(); }, 10000);
     </script>
 </body>
 </html>
@@ -206,28 +206,37 @@ def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     
-    # คำนวณเวลาที่ผ่านไปเป็นนาทีสำหรับบอสแต่ละตัวที่เข้าเฟส
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
         boss_id, ch = key.split('-')
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            # หาส่วนต่างเวลาปัจจุบันลบเวลาเกิดบอส
             diff = now - spawn_time
             minutes_passed = int(diff.total_seconds() // 60)
             if minutes_passed < 0: minutes_passed = 0
         except:
+            spawn_time = now
             minutes_passed = 0
             
         in_phase_list.append({
             "boss_id": boss_id,
             "ch": ch,
             "t_str": t_str,
+            "spawn_time_obj": spawn_time, # เก็บวัตถุเวลาไว้ใช้จัดเรียง
             "minutes_passed": minutes_passed
         })
     
+    # 👑 จัดเรียงบอสในเฟส: เอาตัวที่เกิดก่อน (spawn_time เก่าที่สุด) ขึ้นมาไว้ข้างบน
+    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+    
+    # จัดเรียงบอสรอเกิด: เอาตัวที่กำลังจะเกิดเร็วที่สุดขึ้นก่อน
     sorted_active = sorted(boss_db["active_spawns"].items(), key=lambda x: x[1])
-    return render_template_string(HTML_TEMPLATE, in_phase_list=in_phase_list, active_spawns_sorted=sorted_active)
+    
+    return render_template_string(
+        HTML_TEMPLATE, 
+        in_phase_list_sorted=in_phase_list_sorted, 
+        active_spawns_sorted=sorted_active
+    )
 
 @app.route('/add', methods=['POST'])
 def add_boss():
