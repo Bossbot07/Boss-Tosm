@@ -104,55 +104,71 @@ def update_boss_statuses():
         print(f"❌ update_boss_statuses พัง: {e}")
         return {"active_spawns": {}, "in_phase": {}}
 
+# หน้าตา HTML แบบของคุณ 100% พร้อมระบบ Grid รองรับการจัดกลุ่มบอส
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOSM Boss Tracker</title>
+    <title>⚔️ TOSM BOSS TRACKER ⚔️</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
-        .card { background-color: #1e1e1e; border: 1px solid #333; color: #fff; }
-        .boss-group-card { border-top: 4px solid #ffca28; background-color: #1a1a1a; margin-bottom: 15px; }
-        .sub-card { background-color: #252525; border: 1px solid #444; border-radius: 6px; }
+        .main-title { text-align: center; color: #ffca28; margin-top: 20px; font-weight: bold; }
+        .card-custom { background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px; color: #fff; }
+        .section-title { font-size: 1.25rem; font-weight: bold; margin-top: 25px; margin-bottom: 15px; }
+        .boss-group-box { background-color: #181818; border-left: 4px solid #ffca28; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+        .sub-item-card { background-color: #242424; border: 1px solid #3a3a3a; border-radius: 6px; padding: 12px; }
+        .form-control-custom { background-color: #1a1a1a; border: 1px solid #444; color: #fff; }
+        .form-control-custom:focus { background-color: #222; border-color: #ffca28; color: #fff; box-shadow: none; }
     </style>
 </head>
-<body class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="text-warning m-0">⚔️ TOSM BOSS TRACKER ⚔️</h2>
-        <a href="/reset_db" onclick="return confirm('ต้องการรีเซ็ตล้างค่าขยะใช่ไหม?')" class="btn btn-sm btn-danger">⚙️ รีเซ็ตระบบ</a>
+<body class="container py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="main-title my-0">⚔️ TOSM BOSS TRACKER ⚔️</h2>
+        <a href="/reset_db" onclick="return confirm('ต้องการล้างข้อมูลทั้งหมดใช่ไหม?')" class="btn btn-sm btn-outline-danger">⚙️ รีเซ็ตระบบ</a>
     </div>
-    
-    <div class="card p-3 mb-4">
-        <h5>➕ บันทึกบอสใหม่</h5>
+
+    <div class="card-custom p-3 mb-4">
+        <h5 class="text-warning mb-3">➕ บันทึกบอสใหม่</h5>
         <form action="/add" method="POST" class="row g-2">
-            <div class="col-4"><input type="text" name="boss_id" class="form-control bg-dark text-white" placeholder="เลขบอส" required></div>
-            <div class="col-4"><input type="number" name="ch" class="form-control bg-dark text-white" placeholder="แนล" required></div>
-            <div class="col-4"><input type="text" name="time_input" class="form-control bg-dark text-white" placeholder="นาที เช่น -5"></div>
-            <div class="col-12"><button type="submit" class="btn btn-warning w-100">บันทึกข้อมูล</button></div>
+            <div class="col-4">
+                <input type="text" name="boss_id" class="form-control form-control-custom" placeholder="เลขบอส (เช่น 123)" required>
+            </div>
+            <div class="col-4">
+                <input type="number" name="ch" class="form-control form-control-custom" placeholder="แชนแนล (เช่น 1)" required>
+            </div>
+            <div class="col-4">
+                <input type="text" name="time_input" class="form-control form-control-custom" placeholder="นาที เช่น -5 หรือ 1.30">
+            </div>
+            <div class="col-12 mt-3">
+                <button type="submit" class="btn btn-warning w-100 fw-bold">บันทึกข้อมูล</button>
+            </div>
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase)</h4>
-    <div class="row row-cols-1 g-2 mb-4">
+    <div class="section-title text-danger">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเวลาเกิดก่อน</div>
+    <div class="row row-cols-1 g-3">
         {% for group in in_phase_groups %}
         <div class="col">
-            <div class="card p-3 boss-group-card" style="border-top-color: #ff4757;">
-                <h5 class="text-warning mb-2">🔥 กลุ่มบอส {{ group.boss_id }}</h5>
+            <div class="boss-group-box" style="border-left-color: #ff4757;">
+                <h5 class="text-warning mb-3">🔥 บอส {{ group.boss_id }}</h5>
                 <div class="row row-cols-1 row-cols-md-2 g-2">
                     {% for item in group.items %}
                     <div class="col">
-                        <div class="p-3 sub-card d-flex justify-content-between align-items-center">
+                        <div class="sub-item-card d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-danger m-0">Ch.{{ item.ch }}</h6>
-                                <span class="badge bg-danger my-1 d-inline-block">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
-                                <small class="text-muted d-block">เวลาเกิด: {{ item.time_hm }} น.</small>
+                                <b class="text-white" style="font-size: 1.1rem;">Ch.{{ item.ch }}</b>
+                                <div class="mt-1">
+                                    <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
+                                </div>
+                                <small class="text-muted d-block mt-1">เวลาเกิด: {{ item.time_hm }} น.</small>
                             </div>
-                            <div>
-                                <button onclick="killBoss('{{ group.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success me-1">⚔️ ตายแล้ว</button>
-                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                            <div class="d-flex gap-1">
+                                <button onclick="killBoss('{{ group.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success fw-bold">⚔️ ตายแล้ว</button>
+                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-dark text-danger border-secondary">🗑️</a>
                             </div>
                         </div>
                     </div>
@@ -165,22 +181,22 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming)</h4>
-    <div class="row row-cols-1 g-2">
+    <div class="section-title text-success">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเวลาเกิดใกล้สุด</div>
+    <div class="row row-cols-1 g-3">
         {% for group in upcoming_groups %}
         <div class="col">
-            <div class="card p-3 boss-group-card" style="border-top-color: #2ed573;">
-                <h5 class="text-warning mb-2">⏳ กลุ่มบอส {{ group.boss_id }}</h5>
+            <div class="boss-group-box" style="border-left-color: #2ed573;">
+                <h5 class="text-warning mb-3">⏳ บอส {{ group.boss_id }}</h5>
                 <div class="row row-cols-1 row-cols-md-2 g-2">
                     {% for item in group.items %}
                     <div class="col">
-                        <div class="p-3 sub-card d-flex justify-content-between align-items-center">
+                        <div class="sub-item-card d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-success m-0">Ch.{{ item.ch }}</h6>
-                                <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.time_hm }} น.</b></small>
+                                <b class="text-white" style="font-size: 1.1rem;">Ch.{{ item.ch }}</b>
+                                <div class="text-light mt-1">รอบถัดไป: <span class="text-warning fw-bold">{{ item.time_hm }} น.</span></div>
                             </div>
                             <div>
-                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                                <a href="/delete/{{ group.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-dark text-danger border-secondary">🗑️</a>
                             </div>
                         </div>
                     </div>
@@ -195,19 +211,21 @@ HTML_TEMPLATE = """
 
     <div class="modal fade" id="killModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header"><h5>⚔️ บันทึกบอสใหม่หลังจากตาย</h5></div>
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-warning">⚔️ บันทึกรอบเกิดถัดไป</h5>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="modal-boss-id">
                     <input type="hidden" id="modal-ch">
                     <div class="mb-3">
-                        <label class="form-label">เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white" placeholder="ปล่อยว่าง = ตอนนี้, หรือใส่ -5, 1.30">
+                        <label class="form-label text-light">เวลาเกิดรอบถัดไป (นาที)</label>
+                        <input type="text" id="modal-time-input" class="form-control form-control-custom" placeholder="ปล่อยว่าง = ตอนนี้, หรือใส่ -5, 1.30">
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" onclick="submitKill()" class="btn btn-success">ยืนยัน</button>
+                    <button type="button" onclick="submitKill()" class="btn btn-success fw-bold">ยืนยัน</button>
                 </div>
             </div>
         </div>
@@ -243,6 +261,7 @@ def index():
         boss_db = update_boss_statuses()
         now = get_bkk_now()
         
+        # --- จัดกลุ่มบอสอินเฟส บอสเบอร์เดียวกันจะอยู่กล่องเดียวกัน แยกตามแชนแนลย่อยภายใน ---
         in_phase_dict = {}
         if boss_db and isinstance(boss_db.get("in_phase"), dict):
             for key, t_str in boss_db["in_phase"].items():
@@ -253,7 +272,7 @@ def index():
                     diff = now - spawn_time
                     minutes_passed = int(diff.total_seconds() // 60)
                     if minutes_passed < 0: minutes_passed = 0
-                    time_hm = t_str[11:16] # ตัดเวลาจากฝั่ง Python ป้องกัน Jinja2 เอ๋อ
+                    time_hm = t_str[11:16]
                 except: continue
                     
                 item = {"ch": ch, "time_hm": time_hm, "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed}
@@ -266,6 +285,7 @@ def index():
             in_phase_groups.append({"boss_id": b_id, "items": sorted_items, "min_time": sorted_items[0]["spawn_time_obj"]})
         in_phase_groups_sorted = sorted(in_phase_groups, key=lambda x: x["min_time"])
 
+        # --- จัดกลุ่มบอสรอเกิด บอสเบอร์เดียวกันจะอยู่กล่องเดียวกัน แยกตามแชนแนลย่อยภายใน ---
         upcoming_dict = {}
         if boss_db and isinstance(boss_db.get("active_spawns"), dict):
             for key, t_str in boss_db["active_spawns"].items():
@@ -273,7 +293,7 @@ def index():
                 try:
                     boss_id, ch = str(key).split('-', 1)
                     spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-                    time_hm = t_str[11:16] # ตัดเวลาจากฝั่ง Python ป้องกัน Jinja2 เอ๋อ
+                    time_hm = t_str[11:16]
                 except: continue
                     
                 item = {"ch": ch, "time_hm": time_hm, "spawn_time_obj": spawn_time}
@@ -299,15 +319,15 @@ def index():
 def reset_db():
     empty_data = {"active_spawns": {}, "in_phase": {}}
     save_data(empty_data)
-    return '<script>alert("ล้างฐานข้อมูลขยะเรียบร้อยแล้ว!"); window.location.href="/";</script>'
+    return '<script>alert("ล้างฐานข้อมูลเรียบร้อยแล้ว!"); window.location.href="/";</script>'
 
 @app.route('/add', methods=['POST'])
 def add_boss():
     try:
         boss_db = load_data()
-        boss_id = request.form.get('boss_id')
-        ch = request.form.get('ch')
-        time_input = request.form.get('time_input', '')
+        boss_id = request.form.get('boss_id').strip()
+        ch = request.form.get('ch').strip()
+        time_input = request.form.get('time_input', '').strip()
         
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
@@ -338,7 +358,7 @@ def kill_boss(boss_id, ch):
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
         
-        time_input = request.args.get('time_input', '')
+        time_input = request.args.get('time_input', '').strip()
         base_min = 0
         if time_input:
             try:
