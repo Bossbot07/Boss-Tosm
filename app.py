@@ -192,7 +192,7 @@ HTML_TEMPLATE = """
             const timeInput = document.getElementById('modal-time-input').value;
             window.location.href = `/kill/${bossId}/${ch}?time_input=${timeInput}`;
         }
-        setInterval(() => { window.location.reload(); }, 30000);
+        setInterval(() => { window.location.reload(); }, 5000);
     </script>
 </body>
 </html>
