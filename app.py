@@ -28,7 +28,6 @@ def load_data():
                 return default_data
                 
             data = result
-            # เคลียร์ปัญหา String ซ้อน String
             for _ in range(5):
                 if isinstance(data, str):
                     try:
@@ -106,7 +105,7 @@ def update_boss_statuses():
         print(f"❌ update_boss_statuses พัง: {e}")
         return {"active_spawns": {}, "in_phase": {}}
 
-# HTML UI สไตล์ธีมมืด ดำ-แดง-เขียว ดึงความสวยงามจากเวอร์ชันเก่าของคุณ
+# HTML UI ธีมมืด ดำ-แดง-เขียว จัดกลุ่มบอสเรียบร้อย
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -120,14 +119,9 @@ HTML_TEMPLATE = """
         .main-title { text-align: center; color: #ffca28; font-weight: bold; margin-top: 15px; margin-bottom: 20px; }
         .card-custom { background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px; color: #fff; }
         .section-title { font-size: 1.2rem; font-weight: bold; margin-top: 25px; margin-bottom: 15px; }
-        
-        /* กล่องใหญ่แบ่งตามกลุ่มหมายเลขบอส */
         .boss-group-wrapper { background-color: #181818; border: 1px solid #2d2d2d; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-        
-        /* การ์ดย่อยแชนแนลข้างในกล่องกลุ่ม */
         .sub-card-inphase { background-color: #241414; border: 1px solid #4a1c1c; border-radius: 6px; padding: 12px; }
         .sub-card-upcoming { background-color: #142418; border: 1px solid #1c4a24; border-radius: 6px; padding: 12px; }
-        
         .form-input { background-color: #1a1a1a; border: 1px solid #444; color: #fff; text-align: center; }
         .form-input:focus { background-color: #222; border-color: #ffca28; color: #fff; box-shadow: none; }
     </style>
@@ -244,7 +238,7 @@ HTML_TEMPLATE = """
             const timeInput = document.getElementById('modal-time-input').value;
             window.location.href = `/kill/${bossId}/${ch}?time_input=${timeInput}`;
         }
-        setInterval(() => { window.location.reload(); }, 12000);
+        setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
 </html>
@@ -254,12 +248,10 @@ HTML_TEMPLATE = """
 def index():
     in_phase_groups_sorted = []
     upcoming_groups_sorted = []
-    
     try:
         boss_db = update_boss_statuses()
         now = get_bkk_now()
         
-        # --- ประมวลผลกลุ่มบอส In Phase (เข้าเฟส) ---
         in_phase_dict = {}
         if boss_db and isinstance(boss_db.get("in_phase"), dict):
             for key, t_str in boss_db["in_phase"].items():
@@ -270,9 +262,8 @@ def index():
                     diff = now - spawn_time
                     minutes_passed = int(diff.total_seconds() // 60)
                     if minutes_passed < 0: minutes_passed = 0
-                    time_hm = t_str[11:16] # ตัดเอาเวลา HH:MM เสร็จสรรพจาก Python
+                    time_hm = t_str[11:16]
                 except: continue
-                    
                 item = {"ch": ch, "time_hm": time_hm, "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed}
                 if boss_id not in in_phase_dict: in_phase_dict[boss_id] = []
                 in_phase_dict[boss_id].append(item)
@@ -283,7 +274,6 @@ def index():
             in_phase_groups.append({"boss_id": b_id, "items": sorted_items, "min_time": sorted_items[0]["spawn_time_obj"]})
         in_phase_groups_sorted = sorted(in_phase_groups, key=lambda x: x["min_time"])
 
-        # --- ประมวลผลกลุ่มบอส Upcoming (รอเกิด) ---
         upcoming_dict = {}
         if boss_db and isinstance(boss_db.get("active_spawns"), dict):
             for key, t_str in boss_db["active_spawns"].items():
@@ -291,9 +281,8 @@ def index():
                 try:
                     boss_id, ch = str(key).split('-', 1)
                     spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-                    time_hm = t_str[11:16] # ตัดเอาเวลา HH:MM เสร็จสรรพจาก Python
+                    time_hm = t_str[11:16]
                 except: continue
-                    
                 item = {"ch": ch, "time_hm": time_hm, "spawn_time_obj": spawn_time}
                 if boss_id not in upcoming_dict: upcoming_dict[boss_id] = []
                 upcoming_dict[boss_id].append(item)
@@ -303,21 +292,16 @@ def index():
             sorted_items = sorted(items, key=lambda x: x["spawn_time_obj"])
             upcoming_groups.append({"boss_id": b_id, "items": sorted_items, "min_time": sorted_items[0]["spawn_time_obj"]})
         upcoming_groups_sorted = sorted(upcoming_groups, key=lambda x: x["min_time"])
-        
     except Exception as e:
-        print(f"⚠️ เกิดข้อผิดพลาดตอนรันหน้าแรก: {e}")
+        print(f"⚠️ เกิดข้อผิดพลาดรันหน้าแรก: {e}")
         
-    return render_template_string(
-        HTML_TEMPLATE, 
-        in_phase_groups=in_phase_groups_sorted, 
-        upcoming_groups=upcoming_groups_sorted
-    )
+    return render_template_string(HTML_TEMPLATE, in_phase_groups=in_phase_groups_sorted, upcoming_groups=upcoming_groups_sorted)
 
 @app.route('/reset_db')
 def reset_db():
     empty_data = {"active_spawns": {}, "in_phase": {}}
     save_data(empty_data)
-    return '<script>alert("ล้างฐานข้อมูลเรียบร้อยแล้ว!"); window.location.href="/";</script>'
+    return redirect(url_for('index')) # บังคับ Redirect ไปหน้าแรกแทน script
 
 @app.route('/add', methods=['POST'])
 def add_boss():
@@ -347,7 +331,7 @@ def add_boss():
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
         save_data(boss_db)
     except: pass
-    return '<script>window.location.href="/";</script>'
+    return redirect(url_for('index')) # บังคับ Redirect ไปหน้าแรกแทน script
 
 @app.route('/kill/<boss_id>/<ch>')
 def kill_boss(boss_id, ch):
@@ -373,7 +357,7 @@ def kill_boss(boss_id, ch):
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
         save_data(boss_db)
     except: pass
-    return '<script>window.location.href="/";</script>'
+    return redirect(url_for('index')) # บังคับ Redirect ไปหน้าแรกแทน script
 
 @app.route('/delete/<boss_id>/<ch>')
 def delete_boss(boss_id, ch):
@@ -384,7 +368,7 @@ def delete_boss(boss_id, ch):
         boss_db["in_phase"].pop(key, None)
         save_data(boss_db)
     except: pass
-    return '<script>window.location.href="/";</script>'
+    return redirect(url_for('index')) # บังคับ Redirect ไปหน้าแรกแทน script
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
