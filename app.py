@@ -3,28 +3,22 @@ from datetime import datetime, timedelta
 import requests
 import pytz
 import json
-import os
 
 app = Flask(__name__)
 
-# ดึงค่าเชื่อมต่อจาก Environment ของ Render
-REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
-REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+# ฝังรหัสเชื่อมต่อฐานข้อมูล Upstash ของคุณลงในโค้ดโดยตรง
+REDIS_URL = "https://helping-egret-126070.upstash.io"
+REDIS_TOKEN = "gQAAAAAAAex2AAIgcDJhNDlkZThkNGI5OTc0YTQxYjUzMjU4MTcyNTRhZWM1MQ"
 BKK_TZ = pytz.timezone('Asia/Bangkok')
 
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลแบบปรับปรุงใหม่ ดักจับข้อมูลดิบจาก Upstash ให้ถูกต้อง
+# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์ (แก้ไขตัวแปรที่ผิดแล้ว)
 def load_data():
     default_data = {"active_spawns": {}, "in_phase": {}}
-    if not REDIS_URL or not REDIS_TOKEN:
-        print("⚠️ ยังไม่ได้ตั้งค่า UPSTASH_REDIS ใน Environment ของ Render")
-        return default_data
-    
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        # วิ่งไปเอาค่าคีย์ชื่อ tosm_boss_db จาก Upstash
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
         
         if response.status_code == 200:
@@ -32,13 +26,11 @@ def load_data():
             result = res_json.get("result")
             
             if result:
-                # แก้ไขปัญหา Upstash ส่งข้อมูลกลับมาซ้อน String 
                 if isinstance(result, str):
                     try:
                         data = json.loads(result)
                     except:
-                        # กันเหนียวถ้ามันไม่ยอมแปลง ให้ถอดรหัสซ้ำอีกรอบ
-                        data = json.loads(json.loads(payload))
+                        data = json.loads(result) # ถอดรหัสหากซ้อน string
                 else:
                     data = result
                 
@@ -49,15 +41,13 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
-# ฟังก์ชันเซฟข้อมูลแบบบีบอัดไม่ให้เพี้ยนระหว่างทาง
+# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
 def save_data(data):
-    if not REDIS_URL or not REDIS_TOKEN: return
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        # แปลงข้อความเป็น JSON ดิบธรรมดาเพื่อป้องกันสระภาษาไทยหรือสัญลักษณ์เพี้ยน
         payload = json.dumps(data)
         
         response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
