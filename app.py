@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI สไตล์เดิม ป้องกันหน้าขาวด้วยระบบ Fetch API
+# HTML UI สไตล์เดิม ป้องกันหน้าขาว 100% ด้วย Fetch API
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -116,7 +116,7 @@ HTML_TEMPLATE = """
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเลเวลจากมากไปน้อย</h4>
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงเลเวลมากไปน้อย (ถ้าเท่ากันเรียงตามเวลาเกิดก่อน)</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
         {% for item in in_phase_list_sorted %}
         <div class="col">
@@ -141,7 +141,7 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเลเวลจากมากไปน้อย</h4>
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงเลเวลมากไปน้อย (ถ้าเท่ากันเรียงตามเวลาเกิดก่อน)</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3">
         {% for item in active_spawns_sorted %}
         <div class="col">
@@ -221,7 +221,7 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        // รีเฟรชอัตโนมัติทุก 30 วินาที
+        // รีเฟรชหน้าอัตโนมัติทุก 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -247,9 +247,8 @@ def index():
             spawn_time = now
             minutes_passed = 0
             
-        # แปลง boss_id เป็นตัวเลขเพื่อเอาไว้ใช้เรียงลำดับเลเวลบอส
         try: boss_level = int(boss_id)
-        except: boss_level = -1 # กรณีไม่ใช่ตัวเลขให้ไปอยู่ท้ายสุดเมื่อเรียงจากมากไปน้อย
+        except: boss_level = -1
             
         in_phase_list.append({
             "boss_id": boss_id,
@@ -260,14 +259,20 @@ def index():
             "minutes_passed": minutes_passed
         })
     
-    # 🔥 คีย์สำคัญ: เรียงลำดับเลเวลบอส (boss_level) จากมากไปหาน้อย (reverse=True)
-    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["boss_level"], reverse=True)
+    # 🔥 คีย์สำคัญ: เรียงลำดับซ้อนกัน 
+    # เงื่อนไข 1: เรียงตามเลเวลบอสจากมากไปน้อย (-x["boss_level"])
+    # เงื่อนไข 2: ถ้าเลเวลเท่ากัน เรียงตามเวลาเกิดจากเก่าสุดไปใหม่สุด (x["spawn_time_obj"])
+    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
     
     # 2. จัดการข้อมูลบอสรอเกิด (Upcoming)
     upcoming_list = []
     for key, t_str in boss_db["active_spawns"].items():
         if '-' not in str(key): continue
         boss_id, ch = key.split('-', 1)
+        try:
+            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+        except:
+            spawn_time = now
         
         try: boss_level = int(boss_id)
         except: boss_level = -1
@@ -276,11 +281,14 @@ def index():
             "boss_id": boss_id,
             "boss_level": boss_level,
             "ch": ch,
-            "t_str": t_str
+            "t_str": t_str,
+            "spawn_time_obj": spawn_time
         })
         
-    # ⏳ คีย์สำคัญ: เรียงลำดับบอสรอเกิดตามเลเวลบอส (boss_level) จากมากไปหาน้อยเช่นกัน (reverse=True)
-    active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["boss_level"], reverse=True)
+    # ⏳ คีย์สำคัญ: เรียงลำดับซ้อนกันสำหรับบอสรอเกิด
+    # เงื่อนไข 1: เรียงตามเลเวลบอสจากมากไปน้อย (-x["boss_level"])
+    # เงื่อนไข 2: ถ้าเลเวลเท่ากัน เรียงตามเวลาที่จะเกิดถัดไปจากใกล้สุดไปไกลสุด (x["spawn_time_obj"])
+    active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
     
     return render_template_string(
         HTML_TEMPLATE, 
