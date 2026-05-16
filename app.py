@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request
+from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime, timedelta
 import requests
 import pytz
@@ -6,7 +6,7 @@ import json
 
 app = Flask(__name__)
 
-# ฝังรหัสเชื่อมต่อฐานข้อมูล Upstash ของคุณลงในโค้ดโดยตรง
+# Config ฐานข้อมูล Upstash ของคุณ
 REDIS_URL = "https://helping-egret-126070.upstash.io"
 REDIS_TOKEN = "gQAAAAAAAex2AAIgcDJhNDlkZThkNGI5OTc0YTQxYjUzMjU4MTcyNTRhZWM1MQ"
 BKK_TZ = pytz.timezone('Asia/Bangkok')
@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,6 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
+# HTML UI สไตล์ดั้งเดิมของคุณ แต่เปลี่ยนสถาปัตยกรรมปุ่มเป็นแบบ Fetch API แก้หน้าขาว
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -100,19 +101,22 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body class="container py-4">
-    <h2 class="text-center mb-4 text-warning">⚔️ TOSM BOSS TRACKER ⚔️</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-warning m-0">⚔️ TOSM BOSS TRACKER ⚔️</h2>
+        <button onclick="runApi('/reset_db')" class="btn btn-sm btn-outline-danger">⚙️ รีเซ็ตระบบ</button>
+    </div>
     
     <div class="card p-3 mb-4">
         <h5>➕ บันทึกบอสใหม่</h5>
-        <form action="/add" method="POST" class="row g-2">
-            <div class="col-4"><input type="text" name="boss_id" class="form-control bg-dark text-white" placeholder="เลขบอส (95)" required></div>
-            <div class="col-4"><input type="number" name="ch" class="form-control bg-dark text-white" placeholder="แนล (1)" required></div>
-            <div class="col-4"><input type="text" name="time_input" class="form-control bg-dark text-white" placeholder="นาที เช่น -5"></div>
-            <div class="col-12"><button type="submit" class="btn btn-warning w-100">บันทึกข้อมูล</button></div>
+        <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
+            <div class="col-4"><input type="text" id="boss_id" class="form-control bg-dark text-white" placeholder="เลขบอส (95)" required></div>
+            <div class="col-4"><input type="number" id="ch" class="form-control bg-dark text-white" placeholder="แนล (1)" required></div>
+            <div class="col-4"><input type="text" id="time_input" class="form-control bg-dark text-white" placeholder="นาที เช่น -5"></div>
+            <div class="col-12"><button type="submit" class="btn btn-warning w-100 fw-bold">บันทึกข้อมูล</button></div>
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเวลาเกิดก่อน</h4>
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเลเวลบอส</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
         {% for item in in_phase_list_sorted %}
         <div class="col">
@@ -127,7 +131,7 @@ HTML_TEMPLATE = """
                     </div>
                     <div>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
-                        <a href="/delete/{{ item.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
                     </div>
                 </div>
             </div>
@@ -137,19 +141,18 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเวลาเกิดใกล้สุด</h4>
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเลเวลบอส</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3">
-        {% for key, t_str in active_spawns_sorted %}
-        {% set boss_id, ch = key.split('-') %}
+        {% for item in active_spawns_sorted %}
         <div class="col">
             <div class="card p-3 upcoming-bg">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="text-success m-0">⏳ บอส {{ boss_id }} [Ch.{{ ch }}]</h5>
-                        <small class="text-light">รอบถัดไป: <b class="text-warning">{{ t_str[11:16] }} น.</b></small>
+                        <h5 class="text-success m-0">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
+                        <small class="text-light">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }} น.</b></small>
                     </div>
                     <div>
-                        <a href="/delete/{{ boss_id }}/{{ ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
                     </div>
                 </div>
             </div>
@@ -188,13 +191,38 @@ HTML_TEMPLATE = """
             document.getElementById('modal-time-input').value = "";
             killModal.show();
         }
+
+        // ยิงหลังบ้านเงียบๆ แล้วรีเฟรชหน้าตัวเอง ป้องกันการเกิดหน้าขาวถาวร
+        function runApi(url) {
+            fetch(url)
+            .then(() => { window.location.reload(); })
+            .catch(() => { window.location.reload(); });
+        }
+
+        function submitAddForm(event) {
+            event.preventDefault();
+            const b_id = document.getElementById('boss_id').value;
+            const ch_id = document.getElementById('ch').value;
+            const t_in = document.getElementById('time_input').value;
+
+            fetch('/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `boss_id=${b_id}&ch=${ch_id}&time_input=${t_in}`
+            })
+            .then(() => { window.location.reload(); })
+            .catch(() => { window.location.reload(); });
+        }
+
         function submitKill() {
             const bossId = document.getElementById('modal-boss-id').value;
             const ch = document.getElementById('modal-ch').value;
             const timeInput = document.getElementById('modal-time-input').value;
-            window.location.href = `/kill/${bossId}/${ch}?time_input=${timeInput}`;
+            killModal.hide();
+            runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
-        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 10 วินาที
+
+        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -206,9 +234,11 @@ def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     
+    # 1. จัดการข้อมูลบอสในเฟส (In Phase)
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
-        boss_id, ch = key.split('-')
+        if '-' not in str(key): continue
+        boss_id, ch = key.split('-', 1)
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
             diff = now - spawn_time
@@ -218,86 +248,119 @@ def index():
             spawn_time = now
             minutes_passed = 0
             
+        # พยายามแปลง boss_id เป็นตัวเลขเพื่อเอาไว้ใช้เรียงลำดับเลเวลบอส
+        try: boss_level = int(boss_id)
+        except: boss_level = 9999 # กรณีไม่ใช่ตัวเลขให้ไปอยู่ท้ายสุด
+            
         in_phase_list.append({
             "boss_id": boss_id,
+            "boss_level": boss_level,
             "ch": ch,
             "t_str": t_str,
-            "spawn_time_obj": spawn_time, # เก็บวัตถุเวลาไว้ใช้จัดเรียง
+            "spawn_time_obj": spawn_time,
             "minutes_passed": minutes_passed
         })
     
-    # 👑 จัดเรียงบอสในเฟส: เอาตัวที่เกิดก่อน (spawn_time เก่าที่สุด) ขึ้นมาไว้ข้างบน
-    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+    # 🔥 คีย์สำคัญ: เรียงลำดับตามเลเวลบอส (boss_level) จากน้อยไปหามาก
+    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["boss_level"])
     
-    # จัดเรียงบอสรอเกิด: เอาตัวที่กำลังจะเกิดเร็วที่สุดขึ้นก่อน
-    sorted_active = sorted(boss_db["active_spawns"].items(), key=lambda x: x[1])
+    # 2. จัดการข้อมูลบอสรอเกิด (Upcoming)
+    upcoming_list = []
+    for key, t_str in boss_db["active_spawns"].items():
+        if '-' not in str(key): continue
+        boss_id, ch = key.split('-', 1)
+        
+        try: boss_level = int(boss_id)
+        except: boss_level = 9999
+            
+        upcoming_list.append({
+            "boss_id": boss_id,
+            "boss_level": boss_level,
+            "ch": ch,
+            "t_str": t_str
+        })
+        
+    # ⏳ คีย์สำคัญ: เรียงลำดับบอสรอเกิดตามเลเวลบอส (boss_level) จากน้อยไปหามากเช่นกัน
+    active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["boss_level"])
     
     return render_template_string(
         HTML_TEMPLATE, 
         in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=sorted_active
+        active_spawns_sorted=active_spawns_sorted
     )
+
+@app.route('/reset_db')
+def reset_db():
+    empty_data = {"active_spawns": {}, "in_phase": {}}
+    save_data(empty_data)
+    return jsonify({"status": "success"})
 
 @app.route('/add', methods=['POST'])
 def add_boss():
-    boss_db = load_data()
-    boss_id = request.form.get('boss_id')
-    ch = request.form.get('ch')
-    time_input = request.form.get('time_input', '')
-    
-    key = f"{boss_id}-{ch}"
-    boss_db["active_spawns"].pop(key, None)
-    boss_db["in_phase"].pop(key, None)
-    
-    base_min = 0
-    if time_input:
-        try:
-            is_neg = time_input.startswith("-")
-            clean = time_input.lstrip("-")
-            if "." in clean:
-                h, m = map(int, clean.split("."))
-                base_min = (h * 60) + m
-            else: base_min = int(clean)
-            if is_neg: base_min = -base_min
-        except: pass
+    try:
+        boss_db = load_data()
+        boss_id = request.form.get('boss_id').strip()
+        ch = request.form.get('ch').strip()
+        time_input = request.form.get('time_input', '').strip()
         
-    spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-    boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-    save_data(boss_db)
-    return '<script>window.location.href="/";</script>'
+        key = f"{boss_id}-{ch}"
+        boss_db["active_spawns"].pop(key, None)
+        boss_db["in_phase"].pop(key, None)
+        
+        base_min = 0
+        if time_input:
+            try:
+                is_neg = time_input.startswith("-")
+                clean = time_input.lstrip("-")
+                if "." in clean:
+                    h, m = map(int, clean.split("."))
+                    base_min = (h * 60) + m
+                else: base_min = int(clean)
+                if is_neg: base_min = -base_min
+            except: pass
+            
+        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
+        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 @app.route('/kill/<boss_id>/<ch>')
 def kill_boss(boss_id, ch):
-    boss_db = load_data()
-    key = f"{boss_id}-{ch}"
-    boss_db["in_phase"].pop(key, None)
-    
-    time_input = request.args.get('time_input', '')
-    base_min = 0
-    if time_input:
-        try:
-            is_neg = time_input.startswith("-")
-            clean = time_input.lstrip("-")
-            if "." in clean:
-                h, m = map(int, clean.split("."))
-                base_min = (h * 60) + m
-            else: base_min = int(clean)
-            if is_neg: base_min = -base_min
-        except: pass
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        boss_db["in_phase"].pop(key, None)
         
-    spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-    boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-    save_data(boss_db)
-    return '<script>window.location.href="/";</script>'
+        time_input = request.args.get('time_input', '').strip()
+        base_min = 0
+        if time_input:
+            try:
+                is_neg = time_input.startswith("-")
+                clean = time_input.lstrip("-")
+                if "." in clean:
+                    h, m = map(int, clean.split("."))
+                    base_min = (h * 60) + m
+                else: base_min = int(clean)
+                if is_neg: base_min = -base_min
+            except: pass
+            
+        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
+        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 @app.route('/delete/<boss_id>/<ch>')
 def delete_boss(boss_id, ch):
-    boss_db = load_data()
-    key = f"{boss_id}-{ch}"
-    boss_db["active_spawns"].pop(key, None)
-    boss_db["in_phase"].pop(key, None)
-    save_data(boss_db)
-    return '<script>window.location.href="/";</script>'
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        boss_db["active_spawns"].pop(key, None)
+        boss_db["in_phase"].pop(key, None)
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
