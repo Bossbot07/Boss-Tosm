@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI สไตล์ดั้งเดิมของคุณ แต่เปลี่ยนสถาปัตยกรรมปุ่มเป็นแบบ Fetch API แก้หน้าขาว
+# HTML UI สไตล์เดิม ป้องกันหน้าขาวด้วยระบบ Fetch API
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -116,7 +116,7 @@ HTML_TEMPLATE = """
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเลเวลบอส</h4>
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงตามเลเวลจากมากไปน้อย</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
         {% for item in in_phase_list_sorted %}
         <div class="col">
@@ -141,7 +141,7 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเลเวลบอส</h4>
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงตามเลเวลจากมากไปน้อย</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3">
         {% for item in active_spawns_sorted %}
         <div class="col">
@@ -192,7 +192,6 @@ HTML_TEMPLATE = """
             killModal.show();
         }
 
-        // ยิงหลังบ้านเงียบๆ แล้วรีเฟรชหน้าตัวเอง ป้องกันการเกิดหน้าขาวถาวร
         function runApi(url) {
             fetch(url)
             .then(() => { window.location.reload(); })
@@ -222,7 +221,7 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 30 วินาที
+        // รีเฟรชอัตโนมัติทุก 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -248,9 +247,9 @@ def index():
             spawn_time = now
             minutes_passed = 0
             
-        # พยายามแปลง boss_id เป็นตัวเลขเพื่อเอาไว้ใช้เรียงลำดับเลเวลบอส
+        # แปลง boss_id เป็นตัวเลขเพื่อเอาไว้ใช้เรียงลำดับเลเวลบอส
         try: boss_level = int(boss_id)
-        except: boss_level = 9999 # กรณีไม่ใช่ตัวเลขให้ไปอยู่ท้ายสุด
+        except: boss_level = -1 # กรณีไม่ใช่ตัวเลขให้ไปอยู่ท้ายสุดเมื่อเรียงจากมากไปน้อย
             
         in_phase_list.append({
             "boss_id": boss_id,
@@ -261,8 +260,8 @@ def index():
             "minutes_passed": minutes_passed
         })
     
-    # 🔥 คีย์สำคัญ: เรียงลำดับตามเลเวลบอส (boss_level) จากน้อยไปหามาก
-    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["boss_level"])
+    # 🔥 คีย์สำคัญ: เรียงลำดับเลเวลบอส (boss_level) จากมากไปหาน้อย (reverse=True)
+    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["boss_level"], reverse=True)
     
     # 2. จัดการข้อมูลบอสรอเกิด (Upcoming)
     upcoming_list = []
@@ -271,7 +270,7 @@ def index():
         boss_id, ch = key.split('-', 1)
         
         try: boss_level = int(boss_id)
-        except: boss_level = 9999
+        except: boss_level = -1
             
         upcoming_list.append({
             "boss_id": boss_id,
@@ -280,8 +279,8 @@ def index():
             "t_str": t_str
         })
         
-    # ⏳ คีย์สำคัญ: เรียงลำดับบอสรอเกิดตามเลเวลบอส (boss_level) จากน้อยไปหามากเช่นกัน
-    active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["boss_level"])
+    # ⏳ คีย์สำคัญ: เรียงลำดับบอสรอเกิดตามเลเวลบอส (boss_level) จากมากไปหาน้อยเช่นกัน (reverse=True)
+    active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["boss_level"], reverse=True)
     
     return render_template_string(
         HTML_TEMPLATE, 
