@@ -14,7 +14,7 @@ BKK_TZ = pytz.timezone('Asia/Bangkok')
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์ (แก้ไขตัวแปรที่ผิดแล้ว)
+# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์
 def load_data():
     default_data = {"active_spawns": {}, "in_phase": {}}
     try:
@@ -30,7 +30,7 @@ def load_data():
                     try:
                         data = json.loads(result)
                     except:
-                        data = json.loads(result) # ถอดรหัสหากซ้อน string
+                        data = json.loads(result)
                 else:
                     data = result
                 
@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -114,18 +114,20 @@ HTML_TEMPLATE = """
 
     <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase)</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
-        {% for key, t_str in data.in_phase.items() %}
-        {% set boss_id, ch = key.split('-') %}
+        {% for item in in_phase_list %}
         <div class="col">
             <div class="card p-3 in-phase-bg">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="text-danger m-0">🔥 บอส {{ boss_id }} [Ch.{{ ch }}]</h5>
-                        <small class="text-muted">เวลาเกิด: {{ t_str[11:16] }} น.</small>
+                        <h5 class="text-danger m-0">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
+                        <div class="mt-1">
+                            <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
+                        </div>
+                        <small class="text-muted d-block mt-1">เวลาเกิด: {{ item.t_str[11:16] }} น.</small>
                     </div>
                     <div>
-                        <button onclick="killBoss('{{ boss_id }}', '{{ ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
-                        <a href="/delete/{{ boss_id }}/{{ ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
+                        <a href="/delete/{{ item.boss_id }}/{{ item.ch }}" class="btn btn-sm btn-outline-danger">🗑️</a>
                     </div>
                 </div>
             </div>
@@ -192,6 +194,7 @@ HTML_TEMPLATE = """
             const timeInput = document.getElementById('modal-time-input').value;
             window.location.href = `/kill/${bossId}/${ch}?time_input=${timeInput}`;
         }
+        // สั่งให้รีเฟรชหน้าเว็บอัตโนมัติทุกๆ 10 วินาที เพื่อให้อัปเดตนาทีที่เข้าเฟสแบบเรียลไทม์
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -201,8 +204,30 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     boss_db = update_boss_statuses()
+    now = get_bkk_now()
+    
+    # คำนวณเวลาที่ผ่านไปเป็นนาทีสำหรับบอสแต่ละตัวที่เข้าเฟส
+    in_phase_list = []
+    for key, t_str in boss_db["in_phase"].items():
+        boss_id, ch = key.split('-')
+        try:
+            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            # หาส่วนต่างเวลาปัจจุบันลบเวลาเกิดบอส
+            diff = now - spawn_time
+            minutes_passed = int(diff.total_seconds() // 60)
+            if minutes_passed < 0: minutes_passed = 0
+        except:
+            minutes_passed = 0
+            
+        in_phase_list.append({
+            "boss_id": boss_id,
+            "ch": ch,
+            "t_str": t_str,
+            "minutes_passed": minutes_passed
+        })
+    
     sorted_active = sorted(boss_db["active_spawns"].items(), key=lambda x: x[1])
-    return render_template_string(HTML_TEMPLATE, data=boss_db, active_spawns_sorted=sorted_active)
+    return render_template_string(HTML_TEMPLATE, in_phase_list=in_phase_list, active_spawns_sorted=sorted_active)
 
 @app.route('/add', methods=['POST'])
 def add_boss():
