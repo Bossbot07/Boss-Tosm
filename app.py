@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -219,10 +219,11 @@ def index():
     
     # --- 1. จัดกลุ่มบอสในเฟส (In Phase) ---
     in_phase_dict = {}
-    if boss_db.get("in_phase"):
+    if boss_db and boss_db.get("in_phase"):
         for key, t_str in boss_db["in_phase"].items():
+            if '-' not in key: continue
             try:
-                boss_id, ch = key.split('-')
+                boss_id, ch = key.split('-', 1)
                 spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
                 diff = now - spawn_time
                 minutes_passed = int(diff.total_seconds() // 60)
@@ -252,10 +253,11 @@ def index():
 
     # --- 2. จัดกลุ่มบอสรอเกิด (Upcoming) ---
     upcoming_dict = {}
-    if boss_db.get("active_spawns"):
+    if boss_db and boss_db.get("active_spawns"):
         for key, t_str in boss_db["active_spawns"].items():
+            if '-' not in key: continue
             try:
-                boss_id, ch = key.split('-')
+                boss_id, ch = key.split('-', 1)
                 spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
             except:
                 continue
