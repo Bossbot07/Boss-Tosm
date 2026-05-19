@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, make_response
 from datetime import datetime, timedelta
 import requests
 import pytz
@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -75,7 +75,7 @@ def update_boss_statuses():
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            if now >= (spawn_time + timedelta(minutes=90)):
+            if now >= (spawn_time + timedelta(minutes=30)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
         except: continue
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI สไตล์เดิม ป้องกันหน้าขาว 100% ด้วย Fetch API
+# HTML UI ตัดปุ่มรีเซ็ตออกแล้ว เหลือเฉพาะตัวเลือกการจัดเรียง
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -101,9 +101,16 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
         <h2 class="text-warning m-0">⚔️ TOSM BOSS TRACKER ⚔️</h2>
-        <button onclick="runApi('/reset_db')" class="btn btn-sm btn-outline-danger">⚙️ รีเซ็ตระบบ</button>
+        
+        <div class="d-flex gap-2 align-items-center">
+            <span class="text-muted small">จัดเรียง:</span>
+            <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
+                <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เรียงตามเวลาเกิด</option>
+                <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เรียงตามเลเวลบอส (มาก->น้อย)</option>
+            </select>
+        </div>
     </div>
     
     <div class="card p-3 mb-4">
@@ -116,7 +123,7 @@ HTML_TEMPLATE = """
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - เรียงเลเวลมากไปน้อย (ถ้าเท่ากันเรียงตามเวลาเกิดก่อน)</h4>
+    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - {% if current_sort == 'level' %}เรียงเลเวลมากไปน้อย{% else %}เรียงตามเวลาเกิดก่อน{% endif %}</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
         {% for item in in_phase_list_sorted %}
         <div class="col">
@@ -141,7 +148,7 @@ HTML_TEMPLATE = """
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - เรียงเลเวลมากไปน้อย (ถ้าเท่ากันเรียงตามเวลาเกิดก่อน)</h4>
+    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - {% if current_sort == 'level' %}เรียงเลเวลมากไปน้อย{% else %}เรียงตามเวลาเกิดใกล้สุด{% endif %}</h4>
     <div class="row row-cols-1 row-cols-md-2 g-3">
         {% for item in active_spawns_sorted %}
         <div class="col">
@@ -192,6 +199,11 @@ HTML_TEMPLATE = """
             killModal.show();
         }
 
+        function changeSortOrder(val) {
+            document.cookie = "boss_sort_order=" + val + "; path=/; max-age=31536000";
+            window.location.reload();
+        }
+
         function runApi(url) {
             fetch(url)
             .then(() => { window.location.reload(); })
@@ -221,7 +233,6 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        // รีเฟรชหน้าอัตโนมัติทุก 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -232,6 +243,8 @@ HTML_TEMPLATE = """
 def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
+    
+    sort_by = request.cookies.get('boss_sort_order', 'time')
     
     # 1. จัดการข้อมูลบอสในเฟส (In Phase)
     in_phase_list = []
@@ -259,10 +272,10 @@ def index():
             "minutes_passed": minutes_passed
         })
     
-    # 🔥 คีย์สำคัญ: เรียงลำดับซ้อนกัน 
-    # เงื่อนไข 1: เรียงตามเลเวลบอสจากมากไปน้อย (-x["boss_level"])
-    # เงื่อนไข 2: ถ้าเลเวลเท่ากัน เรียงตามเวลาเกิดจากเก่าสุดไปใหม่สุด (x["spawn_time_obj"])
-    in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    if sort_by == 'level':
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else:
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
     
     # 2. จัดการข้อมูลบอสรอเกิด (Upcoming)
     upcoming_list = []
@@ -285,22 +298,17 @@ def index():
             "spawn_time_obj": spawn_time
         })
         
-    # ⏳ คีย์สำคัญ: เรียงลำดับซ้อนกันสำหรับบอสรอเกิด
-    # เงื่อนไข 1: เรียงตามเลเวลบอสจากมากไปน้อย (-x["boss_level"])
-    # เงื่อนไข 2: ถ้าเลเวลเท่ากัน เรียงตามเวลาที่จะเกิดถัดไปจากใกล้สุดไปไกลสุด (x["spawn_time_obj"])
-    active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    if sort_by == 'level':
+        active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else:
+        active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
     
     return render_template_string(
         HTML_TEMPLATE, 
         in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=active_spawns_sorted
+        active_spawns_sorted=active_spawns_sorted,
+        current_sort=sort_by
     )
-
-@app.route('/reset_db')
-def reset_db():
-    empty_data = {"active_spawns": {}, "in_phase": {}}
-    save_data(empty_data)
-    return jsonify({"status": "success"})
 
 @app.route('/add', methods=['POST'])
 def add_boss():
