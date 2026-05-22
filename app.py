@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI ปรับรูปแบบเวลาแสดงวินาทีครบถ้วน HH:mm:ss
+# HTML UI นำแถวแสดงเวลาเกิดออกจากโซน In Phase แล้ว
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -135,8 +135,7 @@ HTML_TEMPLATE = """
                         <div class="mt-1">
                             <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
                         </div>
-                        <small class="text-muted d-block mt-1">เวลาเกิด: <b class="text-white">{{ item.t_str[11:19] }}</b></small>
-                    </div>
+                        </div>
                     <div>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
                         <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
@@ -235,7 +234,6 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        // ฟังก์ชันนับถอยหลัง Real-time ขยับเป็นวินาที
         function updateCountdowns() {
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
@@ -255,7 +253,6 @@ HTML_TEMPLATE = """
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-                    // เติมเลข 0 ข้างหน้าถ้าหลักหน่วยเพื่อให้เป็นรูปแบบสองหลักสวยงาม
                     const displayHours = String(hours).padStart(2, '0');
                     const displayMinutes = String(minutes).padStart(2, '0');
                     const displaySeconds = String(seconds).padStart(2, '0');
@@ -272,7 +269,6 @@ HTML_TEMPLATE = """
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
 
-        // รีเฟรชใหญ่เบื้องหลังทุก 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
