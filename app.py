@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI อัปเดตส่วนนับถอยหลังแบบเรียลไทม์ผ่าน JS
+# HTML UI ปรับรูปแบบเวลาแสดงวินาทีครบถ้วน HH:mm:ss
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -135,7 +135,7 @@ HTML_TEMPLATE = """
                         <div class="mt-1">
                             <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
                         </div>
-                        <small class="text-muted d-block mt-1">เวลาเกิด: {{ item.t_str[11:16] }} น.</small>
+                        <small class="text-muted d-block mt-1">เวลาเกิด: <b class="text-white">{{ item.t_str[11:19] }}</b></small>
                     </div>
                     <div>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
@@ -157,7 +157,7 @@ HTML_TEMPLATE = """
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="text-success m-0">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }} น.</b></small>
+                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:19] }}</b></small>
                         <div class="countdown-text mt-2" data-target-time="{{ item.iso_time }}">คำนวณเวลา...</div>
                     </div>
                     <div>
@@ -235,7 +235,7 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        // 🕒 ฟังก์ชันคำนวณและแสดงผลเวลานับถอยหลัง ชม. นาที วินาที จริงๆ แบบ Real-time
+        // ฟังก์ชันนับถอยหลัง Real-time ขยับเป็นวินาที
         function updateCountdowns() {
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
@@ -249,27 +249,30 @@ HTML_TEMPLATE = """
                 if (diff <= 0) {
                     el.innerHTML = "💥 บอสเกิดแล้ว / กำลังเข้าเฟส!";
                     el.style.color = "#ff4757";
-                    needReload = true; // ตั้งค่าให้โหลดหน้าใหม่เมื่อมีตัวจับเวลาหมดลง
+                    needReload = true; 
                 } else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-                    el.innerHTML = `⏱️ เหลือเวลาอีก: ${hours} ชม. ${minutes} นาที ${seconds} วิ`;
+                    // เติมเลข 0 ข้างหน้าถ้าหลักหน่วยเพื่อให้เป็นรูปแบบสองหลักสวยงาม
+                    const displayHours = String(hours).padStart(2, '0');
+                    const displayMinutes = String(minutes).padStart(2, '0');
+                    const displaySeconds = String(seconds).padStart(2, '0');
+
+                    el.innerHTML = `⏱️ เหลือเวลาอีก: ${displayHours}:${displayMinutes}:${displaySeconds}`;
                 }
             });
 
-            // ถ้านับถอยหลังหมด ให้รีเฟรชระบบไปดึงสถานะเข้าเฟสตัวล่าสุดทันที
             if (needReload) {
                 setTimeout(() => { window.location.reload(); }, 1500);
             }
         }
 
-        // รันตัวนับถอยหลังทุกๆ 1 วินาที (1000ms)
         setInterval(updateCountdowns, 1000);
-        updateCountdowns(); // เรียกใช้ทันทีที่โหลดหน้าแรกสุด
+        updateCountdowns();
 
-        // คอยรีเฟรชข้อมูลใหญ่จากเบื้องหลังอัปเดตทุก 30 วินาทีตามปกติ
+        // รีเฟรชใหญ่เบื้องหลังทุก 30 วินาที
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -321,7 +324,6 @@ def index():
         boss_id, ch = key.split('-', 1)
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            # แปลงวันเวลาเกิดเป็นรูปแบบ ISO 8601 เพื่อส่งให้ฝั่ง JavaScript ใช้งานได้เสถียร
             iso_time = spawn_time.isoformat()
         except:
             spawn_time = now
