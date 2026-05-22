@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI ปรับรูปแบบโค้ดนับถอยหลังยืดหยุ่นตามชั่วโมง/นาที
+# HTML UI ปรับเปลี่ยนข้อความบนปุ่มเป็น "ใส่เวลาใหม่"
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -137,7 +137,7 @@ HTML_TEMPLATE = """
                         </div>
                     </div>
                     <div>
-                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">ใส่เวลาใหม่</button>
                         <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
                     </div>
                 </div>
