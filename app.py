@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI นำแถวแสดงเวลาเกิดออกจากโซน In Phase แล้ว
+# HTML UI ปรับรูปแบบโค้ดนับถอยหลังยืดหยุ่นตามชั่วโมง/นาที
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -135,7 +135,7 @@ HTML_TEMPLATE = """
                         <div class="mt-1">
                             <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
                         </div>
-                        </div>
+                    </div>
                     <div>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">⚔️ ตายแล้ว</button>
                         <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
@@ -234,6 +234,7 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
+        // 🕒 ปรับสคริปต์ตรวจเช็กเงื่อนไขการแสดงผลตามเวลาที่เหลืออยู่
         function updateCountdowns() {
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
@@ -244,177 +245,4 @@ HTML_TEMPLATE = """
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
 
-                if (diff <= 0) {
-                    el.innerHTML = "💥 บอสเกิดแล้ว / กำลังเข้าเฟส!";
-                    el.style.color = "#ff4757";
-                    needReload = true; 
-                } else {
-                    const hours = Math.floor(diff / (1000 * 60 * 60));
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-                    const displayHours = String(hours).padStart(2, '0');
-                    const displayMinutes = String(minutes).padStart(2, '0');
-                    const displaySeconds = String(seconds).padStart(2, '0');
-
-                    el.innerHTML = `⏱️ เหลือเวลาอีก: ${displayHours}:${displayMinutes}:${displaySeconds}`;
-                }
-            });
-
-            if (needReload) {
-                setTimeout(() => { window.location.reload(); }, 1500);
-            }
-        }
-
-        setInterval(updateCountdowns, 1000);
-        updateCountdowns();
-
-        setInterval(() => { window.location.reload(); }, 30000);
-    </script>
-</body>
-</html>
-"""
-
-@app.route('/')
-def index():
-    boss_db = update_boss_statuses()
-    now = get_bkk_now()
-    
-    sort_by = request.cookies.get('boss_sort_order', 'time')
-    
-    # 1. จัดการข้อมูลบอสในเฟส (In Phase)
-    in_phase_list = []
-    for key, t_str in boss_db["in_phase"].items():
-        if '-' not in str(key): continue
-        boss_id, ch = key.split('-', 1)
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            diff = now - spawn_time
-            minutes_passed = int(diff.total_seconds() // 60)
-            if minutes_passed < 0: minutes_passed = 0
-        except:
-            spawn_time = now
-            minutes_passed = 0
-            
-        try: boss_level = int(boss_id)
-        except: boss_level = -1
-            
-        in_phase_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "minutes_passed": minutes_passed
-        })
-    
-    if sort_by == 'level':
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
-    
-    # 2. จัดการข้อมูลบอสรอเกิด (Upcoming)
-    upcoming_list = []
-    for key, t_str in boss_db["active_spawns"].items():
-        if '-' not in str(key): continue
-        boss_id, ch = key.split('-', 1)
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            iso_time = spawn_time.isoformat()
-        except:
-            spawn_time = now
-            iso_time = now.isoformat()
-        
-        try: boss_level = int(boss_id)
-        except: boss_level = -1
-            
-        upcoming_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "iso_time": iso_time
-        })
-        
-    if sort_by == 'level':
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
-    
-    return render_template_string(
-        HTML_TEMPLATE, 
-        in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=active_spawns_sorted,
-        current_sort=sort_by
-    )
-
-@app.route('/add', methods=['POST'])
-def add_boss():
-    try:
-        boss_db = load_data()
-        boss_id = request.form.get('boss_id').strip()
-        ch = request.form.get('ch').strip()
-        time_input = request.form.get('time_input', '').strip()
-        
-        key = f"{boss_id}-{ch}"
-        boss_db["active_spawns"].pop(key, None)
-        boss_db["in_phase"].pop(key, None)
-        
-        base_min = 0
-        if time_input:
-            try:
-                is_neg = time_input.startswith("-")
-                clean = time_input.lstrip("-")
-                if "." in clean:
-                    h, m = map(int, clean.split("."))
-                    base_min = (h * 60) + m
-                else: base_min = int(clean)
-                if is_neg: base_min = -base_min
-            except: pass
-            
-        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-@app.route('/kill/<boss_id>/<ch>')
-def kill_boss(boss_id, ch):
-    try:
-        boss_db = load_data()
-        key = f"{boss_id}-{ch}"
-        boss_db["in_phase"].pop(key, None)
-        
-        time_input = request.args.get('time_input', '').strip()
-        base_min = 0
-        if time_input:
-            try:
-                is_neg = time_input.startswith("-")
-                clean = time_input.lstrip("-")
-                if "." in clean:
-                    h, m = map(int, clean.split("."))
-                    base_min = (h * 60) + m
-                else: base_min = int(clean)
-                if is_neg: base_min = -base_min
-            except: pass
-            
-        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-@app.route('/delete/<boss_id>/<ch>')
-def delete_boss(boss_id, ch):
-    try:
-        boss_db = load_data()
-        key = f"{boss_id}-{ch}"
-        boss_db["active_spawns"].pop(key, None)
-        boss_db["in_phase"].pop(key, None)
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+                if
