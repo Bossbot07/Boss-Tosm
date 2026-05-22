@@ -272,7 +272,7 @@ HTML_TEMPLATE = """
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
 
-        setInterval(() => { window.location.reload(); }, 30000);
+        setInterval(() => { window.location.reload(); }, 60000);
     </script>
 </body>
 </html>
