@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI ปรับเปลี่ยนข้อความบนปุ่มเป็น "ใส่เวลาใหม่"
+# HTML UI เพิ่มฟีเจอร์กด Enter เพื่อยืนยันใน Modal
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -173,13 +173,13 @@ HTML_TEMPLATE = """
     <div class="modal fade" id="killModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bg-dark text-white">
-                <div class="modal-header"><h5>⚔️ บันทึกบอสตาย</h5></div>
+                <div class="modal-header"><h5>⚔️ บันทึกเวลาบอสรอบใหม่</h5></div>
                 <div class="modal-body">
                     <input type="hidden" id="modal-boss-id">
                     <input type="hidden" id="modal-ch">
                     <div class="mb-3">
                         <label class="form-label">เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white" placeholder="ปล่อยว่าง = ตอนนี้, หรือใส่ -5, 1.30">
+                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white" placeholder="ปล่อยว่าง = ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -193,11 +193,25 @@ HTML_TEMPLATE = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const killModal = new bootstrap.Modal(document.getElementById('killModal'));
+        
         function killBoss(bossId, ch) {
             document.getElementById('modal-boss-id').value = bossId;
             document.getElementById('modal-ch').value = ch;
-            document.getElementById('modal-time-input').value = "";
+            const timeInput = document.getElementById('modal-time-input');
+            timeInput.value = "";
+            
             killModal.show();
+            
+            // ให้เคอร์เซอร์โฟกัสที่ช่องพิมพ์อัตโนมัติเมื่อป๊อปอัปแสดงขึ้นมา เพื่อให้พร้อมกดพิมพ์และ Enter ได้ทันที
+            setTimeout(() => { timeInput.focus(); }, 500);
+        }
+
+        // ฟังก์ชันดักจับแป้นพิมพ์ Enter ในกล่องป๊อปอัป
+        function handleModalKeyDown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // ป้องกันการส่งฟอร์มซ้ำซ้อนเบื้องหลัง
+                submitKill(); // เรียกใช้ฟังก์ชันยืนยันข้อมูล
+            }
         }
 
         function changeSortOrder(val) {
@@ -272,7 +286,7 @@ HTML_TEMPLATE = """
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
 
-        setInterval(() => { window.location.reload(); }, 60000);
+        setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
 </html>
