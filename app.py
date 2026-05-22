@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI ตัดปุ่มรีเซ็ตออกแล้ว เหลือเฉพาะตัวเลือกการจัดเรียง
+# HTML UI อัปเดตส่วนนับถอยหลังแบบเรียลไทม์ผ่าน JS
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -98,6 +98,7 @@ HTML_TEMPLATE = """
         .card { background-color: #1e1e1e; border: 1px solid #333; color: #fff; }
         .in-phase-bg { border-left: 5px solid #ff4757; }
         .upcoming-bg { border-left: 5px solid #2ed573; }
+        .countdown-text { font-size: 0.95rem; font-weight: bold; color: #2ed573; }
     </style>
 </head>
 <body class="container py-4">
@@ -156,7 +157,8 @@ HTML_TEMPLATE = """
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="text-success m-0">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <small class="text-light">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }} น.</b></small>
+                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }} น.</b></small>
+                        <div class="countdown-text mt-2" data-target-time="{{ item.iso_time }}">คำนวณเวลา...</div>
                     </div>
                     <div>
                         <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
@@ -233,6 +235,41 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
+        // 🕒 ฟังก์ชันคำนวณและแสดงผลเวลานับถอยหลัง ชม. นาที วินาที จริงๆ แบบ Real-time
+        function updateCountdowns() {
+            const now = new Date().getTime();
+            const elements = document.querySelectorAll('[data-target-time]');
+            let needReload = false;
+
+            elements.forEach(el => {
+                const targetIso = el.getAttribute('data-target-time');
+                const targetTime = new Date(targetIso).getTime();
+                const diff = targetTime - now;
+
+                if (diff <= 0) {
+                    el.innerHTML = "💥 บอสเกิดแล้ว / กำลังเข้าเฟส!";
+                    el.style.color = "#ff4757";
+                    needReload = true; // ตั้งค่าให้โหลดหน้าใหม่เมื่อมีตัวจับเวลาหมดลง
+                } else {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                    el.innerHTML = `⏱️ เหลือเวลาอีก: ${hours} ชม. ${minutes} นาที ${seconds} วิ`;
+                }
+            });
+
+            // ถ้านับถอยหลังหมด ให้รีเฟรชระบบไปดึงสถานะเข้าเฟสตัวล่าสุดทันที
+            if (needReload) {
+                setTimeout(() => { window.location.reload(); }, 1500);
+            }
+        }
+
+        // รันตัวนับถอยหลังทุกๆ 1 วินาที (1000ms)
+        setInterval(updateCountdowns, 1000);
+        updateCountdowns(); // เรียกใช้ทันทีที่โหลดหน้าแรกสุด
+
+        // คอยรีเฟรชข้อมูลใหญ่จากเบื้องหลังอัปเดตทุก 30 วินาทีตามปกติ
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
@@ -284,8 +321,11 @@ def index():
         boss_id, ch = key.split('-', 1)
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            # แปลงวันเวลาเกิดเป็นรูปแบบ ISO 8601 เพื่อส่งให้ฝั่ง JavaScript ใช้งานได้เสถียร
+            iso_time = spawn_time.isoformat()
         except:
             spawn_time = now
+            iso_time = now.isoformat()
         
         try: boss_level = int(boss_id)
         except: boss_level = -1
@@ -295,7 +335,8 @@ def index():
             "boss_level": boss_level,
             "ch": ch,
             "t_str": t_str,
-            "spawn_time_obj": spawn_time
+            "spawn_time_obj": spawn_time,
+            "iso_time": iso_time
         })
         
     if sort_by == 'level':
