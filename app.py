@@ -41,7 +41,7 @@ def load_data():
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โโหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
 # ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI เพิ่มฟีเจอร์กด Enter เพื่อยืนยันใน Modal
+# HTML UI ตัดหน่วยวินาทีออกจาก "รอบถัดไป" เรียบร้อยแล้ว (เหลือแค่ HH:mm)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -156,7 +156,7 @@ HTML_TEMPLATE = """
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="text-success m-0">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:19] }}</b></small>
+                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }}</b></small>
                         <div class="countdown-text mt-2" data-target-time="{{ item.iso_time }}">คำนวณเวลา...</div>
                     </div>
                     <div>
@@ -202,15 +202,13 @@ HTML_TEMPLATE = """
             
             killModal.show();
             
-            // ให้เคอร์เซอร์โฟกัสที่ช่องพิมพ์อัตโนมัติเมื่อป๊อปอัปแสดงขึ้นมา เพื่อให้พร้อมกดพิมพ์และ Enter ได้ทันที
             setTimeout(() => { timeInput.focus(); }, 500);
         }
 
-        // ฟังก์ชันดักจับแป้นพิมพ์ Enter ในกล่องป๊อปอัป
         function handleModalKeyDown(event) {
             if (event.key === 'Enter') {
-                event.preventDefault(); // ป้องกันการส่งฟอร์มซ้ำซ้อนเบื้องหลัง
-                submitKill(); // เรียกใช้ฟังก์ชันยืนยันข้อมูล
+                event.preventDefault();
+                submitKill();
             }
         }
 
@@ -286,7 +284,7 @@ HTML_TEMPLATE = """
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
 
-        setInterval(() => { window.location.reload(); }, 30000);
+        setInterval(() => { window.location.reload(); }, 60000);
     </script>
 </body>
 </html>
