@@ -72,10 +72,11 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
+    # ⏱️ ปรับแก้จาก timedelta(minutes=30) เป็น timedelta(minutes=90) เรียบร้อยครับ
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            if now >= (spawn_time + timedelta(minutes=30)):
+            if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
         except: continue
@@ -84,7 +85,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI ตัดหน่วยวินาทีออกจาก "รอบถัดไป" เรียบร้อยแล้ว (เหลือแค่ HH:mm)
+# HTML UI
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
