@@ -72,7 +72,6 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
-    # ⏱️ ปรับแก้จาก timedelta(minutes=30) เป็น timedelta(minutes=90) เรียบร้อยครับ
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
@@ -85,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI
+# HTML UI - ปรับดีไซน์แบบ Mini Compact ย่อขนาดลงทุกส่วน
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -95,97 +94,103 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; font-size: 0.85rem; }
         .card { background-color: #1e1e1e; border: 1px solid #333; color: #fff; }
-        .in-phase-bg { border-left: 5px solid #ff4757; }
-        .upcoming-bg { border-left: 5px solid #2ed573; }
-        .countdown-text { font-size: 0.95rem; font-weight: bold; color: #2ed573; }
+        .in-phase-bg { border-left: 4px solid #ff4757; }
+        .upcoming-bg { border-left: 4px solid #2ed573; }
+        .countdown-text { font-size: 0.8rem; font-weight: bold; color: #2ed573; }
+        .form-control-sm, .form-select-sm, .btn-sm { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+        h2 { font-size: 1.4rem; }
+        h4 { font-size: 1.05rem; }
+        h5 { font-size: 0.95rem; }
     </style>
 </head>
-<body class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
-        <h2 class="text-warning m-0">⚔️ TOSM BOSS TRACKER ⚔️</h2>
+<body class="container-fluid px-3 py-2" style="max-width: 900px;">
+    <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+        <h2 class="text-warning m-0">⚔️ TOSM BOSS</h2>
         
-        <div class="d-flex gap-2 align-items-center">
-            <span class="text-muted small">จัดเรียง:</span>
-            <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
-                <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เรียงตามเวลาเกิด</option>
-                <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เรียงตามเลเวลบอส (มาก->น้อย)</option>
+        <div class="d-flex gap-1 align-items-center">
+            <span class="text-muted" style="font-size: 0.75rem;">จัดเรียง:</span>
+            <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto; height: 28px; padding-top: 2px;">
+                <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
+                <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
             </select>
         </div>
     </div>
     
-    <div class="card p-3 mb-4">
-        <h5>➕ บันทึกบอสใหม่</h5>
-        <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
-            <div class="col-4"><input type="text" id="boss_id" class="form-control bg-dark text-white" placeholder="เลขบอส (95)" required></div>
-            <div class="col-4"><input type="number" id="ch" class="form-control bg-dark text-white" placeholder="แนล (1)" required></div>
-            <div class="col-4"><input type="text" id="time_input" class="form-control bg-dark text-white" placeholder="นาที เช่น -5"></div>
-            <div class="col-12"><button type="submit" class="btn btn-warning w-100 fw-bold">บันทึกข้อมูล</button></div>
+    <div class="card p-2 mb-3">
+        <h6 class="m-0 mb-1 text-secondary">➕ บันทึกบอสใหม่</h6>
+        <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-1">
+            <div class="col-4"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส (95)" required></div>
+            <div class="col-4"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="แนล (1)" required></div>
+            <div class="col-4"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="นาที เช่น -5"></div>
+            <div class="col-12 mt-1"><button type="submit" class="btn btn-sm btn-warning w-100 fw-bold py-1">บันทึกข้อมูล</button></div>
         </form>
     </div>
 
-    <h4 class="text-danger mb-3">🚨 เข้าเฟสแล้ว (In Phase) - {% if current_sort == 'level' %}เรียงเลเวลมากไปน้อย{% else %}เรียงตามเวลาเกิดก่อน{% endif %}</h4>
-    <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
+    <h4 class="text-danger mb-2">🚨 เข้าเฟสแล้ว (In Phase)</h4>
+    <div class="row row-cols-1 row-cols-sm-2 g-1 mb-3">
         {% for item in in_phase_list_sorted %}
         <div class="col">
-            <div class="card p-3 in-phase-bg">
+            <div class="card p-2 in-phase-bg">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="text-danger m-0">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <div class="mt-1">
-                            <span class="badge bg-danger">เข้าเฟสมาแล้ว {{ item.minutes_passed }} นาที</span>
+                        <h6 class="text-danger m-0 fw-bold">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h6>
+                        <div class="mt-0">
+                            <span class="badge bg-danger" style="font-size: 0.7rem; padding: 0.15rem 0.3rem;">เข้าเฟสมาแล้ว {{ item.minutes_passed }} น.</span>
                         </div>
                     </div>
-                    <div>
-                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-sm btn-success">ใส่เวลาใหม่</button>
-                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
+                    <div class="d-flex gap-1">
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-xs btn-success btn-sm py-0 px-2" style="height: 24px; font-size: 0.75rem;">ใส่เวลาใหม่</button>
+                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-xs btn-outline-danger btn-sm py-0 px-1" style="height: 24px;">🗑️</button>
                     </div>
                 </div>
             </div>
         </div>
         {% else %}
-        <p class="text-muted ps-2">ไม่มีบอสในเฟส...</p>
+        <p class="text-muted ps-2" style="font-size: 0.8rem;">ไม่มีบอสในเฟส...</p>
         {% endfor %}
     </div>
 
-    <h4 class="text-success mb-3">⏳ กำลังรอเกิด (Upcoming) - {% if current_sort == 'level' %}เรียงเลเวลมากไปน้อย{% else %}เรียงตามเวลาเกิดใกล้สุด{% endif %}</h4>
-    <div class="row row-cols-1 row-cols-md-2 g-3">
+    <h4 class="text-success mb-2">⏳ กำลังรอเกิด (Upcoming)</h4>
+    <div class="row row-cols-1 row-cols-sm-2 g-1">
         {% for item in active_spawns_sorted %}
         <div class="col">
-            <div class="card p-3 upcoming-bg">
+            <div class="card p-2 upcoming-bg">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="text-success m-0">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h5>
-                        <small class="text-light d-block mt-1">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }}</b></small>
-                        <div class="countdown-text mt-2" data-target-time="{{ item.iso_time }}">คำนวณเวลา...</div>
+                        <h6 class="text-success m-0 fw-bold">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h6>
+                        <small class="text-light d-block" style="font-size: 0.75rem;">รอบถัดไป: <b class="text-warning">{{ item.t_str[11:16] }}</b></small>
+                        <div class="countdown-text mt-0" data-target-time="{{ item.iso_time }}">คำนวณเวลา...</div>
                     </div>
                     <div>
-                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-sm btn-outline-danger">🗑️</button>
+                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-xs btn-outline-danger btn-sm py-0 px-1" style="height: 24px;">🗑️</button>
                     </div>
                 </div>
             </div>
         </div>
         {% else %}
-        <p class="text-muted ps-2">ไม่มีบอสรอเกิด...</p>
+        <p class="text-muted ps-2" style="font-size: 0.8rem;">ไม่มีบอสรอเกิด...</p>
         {% endfor %}
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header"><h5>⚔️ บันทึกเวลาบอสรอบใหม่</h5></div>
-                <div class="modal-body">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header p-2 border-secondary">
+                    <h6 class="modal-title m-0">⚔️ บันทึกเวลาบอสรอบใหม่</h6>
+                </div>
+                <div class="modal-body p-2">
                     <input type="hidden" id="modal-boss-id">
                     <input type="hidden" id="modal-ch">
-                    <div class="mb-3">
-                        <label class="form-label">เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white" placeholder="ปล่อยว่าง = ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)">
+                    <div class="mb-2">
+                        <label class="form-label mb-1" style="font-size: 0.75rem;">เวลาเกิดรอบถัดไป (นาที)</label>
+                        <input type="text" id="modal-time-input" class="form-control form-control-sm bg-secondary text-white border-0" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)">
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" onclick="submitKill()" class="btn btn-success">ยืนยัน</button>
+                <div class="modal-footer p-1 border-secondary">
+                    <button type="button" class="btn btn-sm btn-secondary py-0" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" onclick="submitKill()" class="btn btn-sm btn-success py-0">ยืนยัน</button>
                 </div>
             </div>
         </div>
@@ -203,7 +208,7 @@ HTML_TEMPLATE = """
             
             killModal.show();
             
-            setTimeout(() => { timeInput.focus(); }, 500);
+            setTimeout(() => { timeInput.focus(); }, 400);
         }
 
         function handleModalKeyDown(event) {
@@ -258,7 +263,7 @@ HTML_TEMPLATE = """
                 const diff = targetTime - now;
 
                 if (diff <= 0) {
-                    el.innerHTML = "💥 บอสเกิดแล้ว / กำลังเข้าเฟส!";
+                    el.innerHTML = "💥 เกิดแล้ว / เข้าเฟส!";
                     el.style.color = "#ff4757";
                     needReload = true; 
                 } else {
@@ -270,9 +275,9 @@ HTML_TEMPLATE = """
                     const displaySeconds = String(seconds).padStart(2, '0');
 
                     if (hours > 0) {
-                        el.innerHTML = `⏱️ เหลือเวลาอีก: ${hours}:${displayMinutes}:${displaySeconds}`;
+                        el.innerHTML = `⏱️ เหลือ: ${hours}:${displayMinutes}:${displaySeconds}`;
                     } else {
-                        el.innerHTML = `⏱️ เหลือเวลาอีก: ${displayMinutes}:${displaySeconds}`;
+                        el.innerHTML = `⏱️ เหลือ: ${displayMinutes}:${displaySeconds}`;
                     }
                 }
             });
@@ -285,7 +290,7 @@ HTML_TEMPLATE = """
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
 
-        setInterval(() => { window.location.reload(); }, 60000);
+        setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
 </html>
