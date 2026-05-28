@@ -80,12 +80,11 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
-    # 🛠️ ป้องกันบั๊กรีเฟรชรัว: จะบันทึกเมื่อโครงสร้างข้อมูลเปลี่ยนจริง ๆ เท่านั้น
     if has_change:
         save_data(boss_db)
     return boss_db
 
-# HTML UI - ปรับสัดส่วน Layout ใหม่ตามคำขอ
+# HTML UI - เวอร์ชันขยายขนาดใหญ่ (BIG UI)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -95,109 +94,123 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 13px !important; }
+        /* 🚀 ขยายขนาดตัวอักษรพื้นฐานของทั้งเว็บขึ้นมาเป็น 15px */
+        body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 15px !important; }
         
-        .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 8px 10px !important; margin-bottom: 5px !important; border-radius: 6px !important; }
-        .in-phase-bg { border-left: 5px solid #ff4757 !important; }
-        .upcoming-bg { border-left: 5px solid #2ed573 !important; }
+        /* ขยายขนาดความกว้างสูงสุดของหน้าจอให้รองรับปุ่มที่ใหญ่ขึ้น (จาก 600px -> 680px) */
+        .main-container { max-width: 680px !important; margin: 0 auto; }
         
-        /* 🛠️ ปรับโครงสร้าง Column ใหม่ */
-        .col-boss-info { width: 38% !important; min-width: 100px; flex-shrink: 0; }
-        .col-boss-center { width: 32% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
-        .col-boss-action { width: 30% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
+        /* ขยายขนาดความสูงและการเว้นช่องไฟของการ์ดบอส (Padding 12px 14px) ให้ดูหนา ชัดเจน เต็มตากว่าเดิม */
+        .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 12px 14px !important; margin-bottom: 7px !important; border-radius: 8px !important; }
+        .in-phase-bg { border-left: 6px solid #ff4757 !important; }
+        .upcoming-bg { border-left: 6px solid #2ed573 !important; }
         
-        .boss-title { font-size: 13px !important; font-weight: bold; }
-        .time-text { font-size: 13px !important; font-weight: bold; }
-        .countdown-text { font-size: 13px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
+        /* สัดส่วน Column ใหม่แบบขยายวงกว้าง ขยับข้อความเข้าเฟสไว้โซนกลาง */
+        .col-boss-info { width: 38% !important; min-width: 120px; flex-shrink: 0; }
+        .col-boss-center { width: 30% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
+        .col-boss-action { width: 32% !important; display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-shrink: 0; }
         
-        .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 30px !important; }
-        .btn-custom-sm { font-size: 12px !important; padding: 4px 10px !important; height: 28px !important; line-height: 1.2 !important; font-weight: bold !important; }
-        .btn-delete { padding: 4px 8px !important; height: 28px !important; font-size: 12px !important; }
+        /* ขยายขนาดฟอนต์ชื่อบอสและเวลาเกิดตัวโต ๆ */
+        .boss-title { font-size: 16px !important; font-weight: bold; }
+        .time-text { font-size: 16px !important; font-weight: bold; }
+        .countdown-text { font-size: 15px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         
-        h2 { font-size: 18px !important; margin: 0 !important; font-weight: bold !important; }
-        h4 { font-size: 14px !important; margin-top: 12px !important; margin-bottom: 6px !important; font-weight: bold !important; }
-        .badge-phase { font-size: 11px !important; padding: 4px 8px !important; font-weight: bold; }
+        /* ขยายขนาดฟอร์มกรอกข้อมูลด้านบนให้สูงและใหญ่ขึ้น */
+        .form-control-sm, .form-select-sm { font-size: 14px !important; padding: 6px 10px !important; height: 38px !important; }
+        
+        /* ขยายขนาดปุ่มกดทั้งหมดให้ใหญ่ขึ้นอย่างเห็นได้ชัด กดง่ายไม่ต้องเพ่ง */
+        .btn-custom-sm { font-size: 14px !important; padding: 6px 14px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
+        .btn-delete { padding: 6px 12px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
+        
+        h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
+        h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
+        
+        /* ขยายขนาดแผ่นป้าย "เข้าเฟส X น." ให้ตัวเบิ้มขึ้น */
+        .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
     </style>
 </head>
-<body class="container-fluid px-2 py-2" style="max-width: 600px !important;">
-    
-    <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
-        <h2 class="text-warning">⚔️ TOSM BOSS</h2>
-        <div class="d-flex gap-1 align-items-center">
-            <span class="text-muted" style="font-size: 11px;">เรียง:</span>
-            <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
-                <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
-                <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
-            </select>
+<body class="container-fluid px-2 py-2">
+    <div class="main-container">
+        
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+            <h2 class="text-warning">⚔️ TOSM BOSS</h2>
+            <div class="d-flex gap-1 align-items-center">
+                <span class="text-muted" style="font-size: 13px;">เรียง:</span>
+                <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
+                    <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
+                    <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
+                </select>
+            </div>
         </div>
-    </div>
-    
-    <div class="boss-card p-2 mb-3">
-        <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-1">
-            <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
-            <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="แนล" required></div>
-            <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="นาที (-5)"></div>
-            <div class="col-3"><button type="submit" class="btn btn-warning btn-custom-sm w-100">➕ บันทึก</button></div>
-        </form>
-    </div>
+        
+        <div class="boss-card p-2 mb-3">
+            <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
+                <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
+                <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="แนล" required></div>
+                <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="นาที (-5)"></div>
+                <div class="col-3"><button type="submit" class="btn btn-warning btn-custom-sm w-100" style="height: 38px !important;">➕ บันทึก</button></div>
+            </form>
+        </div>
 
-    <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
-    <div class="d-flex flex-column gap-1 mb-3">
-        {% for item in in_phase_list_sorted %}
-        <div class="boss-card in-phase-bg d-flex align-items-center m-0">
-            <div class="col-boss-info">
-                <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+        <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
+        <div class="d-flex flex-column gap-1 mb-4">
+            {% for item in in_phase_list_sorted %}
+            <div class="boss-card in-phase-bg d-flex align-items-center m-0">
+                <div class="col-boss-info">
+                    <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+                </div>
+                
+                <div class="col-boss-center">
+                    <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
+                </div>
+                
+                <div class="col-boss-action">
+                    <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
+                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
+                </div>
             </div>
-            
-            <div class="col-boss-center">
-                <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
-            </div>
-            
-            <div class="col-boss-action">
-                <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
-                <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
-            </div>
+            {% else %}
+            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
+            {% endfor %}
         </div>
-        {% else %}
-        <p class="text-muted ps-1 m-0">ไม่มีบอสในเฟส...</p>
-        {% endfor %}
-    </div>
 
-    <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
-    <div class="d-flex flex-column gap-1">
-        {% for item in active_spawns_sorted %}
-        <div class="boss-card upcoming-bg d-flex align-items-center m-0">
-            <div class="col-boss-info">
-                <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+        <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
+        <div class="d-flex flex-column gap-1">
+            {% for item in active_spawns_sorted %}
+            <div class="boss-card upcoming-bg d-flex align-items-center m-0">
+                <div class="col-boss-info">
+                    <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+                </div>
+                
+                <div class="col-boss-center">
+                    <span class="text-warning time-text">{{ item.t_str[11:16] }}</span>
+                </div>
+                
+                <div class="col-boss-action">
+                    <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
+                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
+                </div>
             </div>
-            
-            <div class="col-boss-center">
-                <span class="text-warning time-text">{{ item.t_str[11:16] }}</span>
-            </div>
-            
-            <div class="col-boss-action">
-                <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
-                <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
-            </div>
+            {% else %}
+            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
+            {% endfor %}
         </div>
-        {% else %}
-        <p class="text-muted ps-1 m-0">ไม่มีบอสรอเกิด...</p>
-        {% endfor %}
+
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 280px;">
+        <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
             <div class="modal-content bg-dark text-white border-secondary">
                 <div class="modal-body p-3">
                     <input type="hidden" id="modal-boss-id">
                     <input type="hidden" id="modal-ch">
                     <div class="mb-3">
-                        <label class="form-label mb-1" style="font-size: 12px;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 13px; height: 34px;">
+                        <label class="form-label mb-2" style="font-size: 14px; font-weight: bold;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
+                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 15px; height: 42px;">
                     </div>
                     <div class="d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-secondary btn-custom-sm" data-bs-dismiss="modal">ยกเลิก</button>
-                        <button type="button" onclick="submitKill()" class="btn btn-success btn-custom-sm">ยืนยัน</button>
+                        <button type="button" class="btn btn-secondary btn-custom-sm" style="height: 36px;" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" onclick="submitKill()" class="btn btn-success btn-custom-sm" style="height: 36px;">ยืนยัน</button>
                     </div>
                 </div>
             </div>
@@ -285,8 +298,6 @@ HTML_TEMPLATE = """
 
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
-        
-        // 🛠️ ปรับเวลาออโต้รีเฟรชหน้าเว็บเป็นทุก 45 วินาที เพื่อลดโอกาสชนกันขณะกดปุ่มเวลาใหม่
         setInterval(() => { window.location.reload(); }, 45000);
     </script>
 </body>
