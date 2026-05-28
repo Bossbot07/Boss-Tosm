@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - เวอร์ชันขยายขนาดใหญ่ (BIG UI)
+# HTML UI - ปรับแก้ระบบโฟกัสอัตโนมัติ
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -94,38 +94,28 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* 🚀 ขยายขนาดตัวอักษรพื้นฐานของทั้งเว็บขึ้นมาเป็น 15px */
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 15px !important; }
-        
-        /* ขยายขนาดความกว้างสูงสุดของหน้าจอให้รองรับปุ่มที่ใหญ่ขึ้น (จาก 600px -> 680px) */
         .main-container { max-width: 680px !important; margin: 0 auto; }
         
-        /* ขยายขนาดความสูงและการเว้นช่องไฟของการ์ดบอส (Padding 12px 14px) ให้ดูหนา ชัดเจน เต็มตากว่าเดิม */
         .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 12px 14px !important; margin-bottom: 7px !important; border-radius: 8px !important; }
         .in-phase-bg { border-left: 6px solid #ff4757 !important; }
         .upcoming-bg { border-left: 6px solid #2ed573 !important; }
         
-        /* สัดส่วน Column ใหม่แบบขยายวงกว้าง ขยับข้อความเข้าเฟสไว้โซนกลาง */
         .col-boss-info { width: 38% !important; min-width: 120px; flex-shrink: 0; }
         .col-boss-center { width: 30% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
         .col-boss-action { width: 32% !important; display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-shrink: 0; }
         
-        /* ขยายขนาดฟอนต์ชื่อบอสและเวลาเกิดตัวโต ๆ */
         .boss-title { font-size: 16px !important; font-weight: bold; }
         .time-text { font-size: 16px !important; font-weight: bold; }
         .countdown-text { font-size: 15px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         
-        /* ขยายขนาดฟอร์มกรอกข้อมูลด้านบนให้สูงและใหญ่ขึ้น */
         .form-control-sm, .form-select-sm { font-size: 14px !important; padding: 6px 10px !important; height: 38px !important; }
         
-        /* ขยายขนาดปุ่มกดทั้งหมดให้ใหญ่ขึ้นอย่างเห็นได้ชัด กดง่ายไม่ต้องเพ่ง */
         .btn-custom-sm { font-size: 14px !important; padding: 6px 14px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
         .btn-delete { padding: 6px 12px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
         
         h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
-        
-        /* ขยายขนาดแผ่นป้าย "เข้าเฟส X น." ให้ตัวเบิ้มขึ้น */
         .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
     </style>
 </head>
@@ -219,16 +209,20 @@ HTML_TEMPLATE = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const killModal = new bootstrap.Modal(document.getElementById('killModal'));
+        const killModalElement = document.getElementById('killModal');
+        const killModal = new bootstrap.Modal(killModalElement);
         
         function killBoss(bossId, ch) {
             document.getElementById('modal-boss-id').value = bossId;
             document.getElementById('modal-ch').value = ch;
-            const timeInput = document.getElementById('modal-time-input');
-            timeInput.value = "";
+            document.getElementById('modal-time-input').value = "";
             killModal.show();
-            setTimeout(() => { timeInput.focus(); }, 300);
         }
+
+        /* 🛠️ แก้บั๊ก: บังคับให้ระบบ Focus ไปที่ช่องพิมพ์เมื่อหน้าต่างอนิเมชันเปิดเสร็จสมบูรณ์ร้อยเปอร์เซ็นต์ */
+        killModalElement.addEventListener('shown.bs.modal', function () {
+            document.getElementById('modal-time-input').focus();
+        });
 
         function handleModalKeyDown(event) {
             if (event.key === 'Enter') {
