@@ -80,11 +80,12 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
+    # 🛠️ ป้องกันบั๊กรีเฟรชรัว: จะบันทึกเมื่อโครงสร้างข้อมูลเปลี่ยนจริง ๆ เท่านั้น
     if has_change:
         save_data(boss_db)
     return boss_db
 
-# HTML UI - ขยายขนาดให้ใหญ่ขึ้น + แก้ไขคำใน Badge เป็น "เข้าเฟส X น."
+# HTML UI - ปรับสัดส่วน Layout ใหม่ตามคำขอ
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -94,32 +95,28 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* 🛠️ ขยายขนาดฟอนต์พื้นฐานให้ใหญ่ขึ้นจาก 11px เป็น 13px เพื่อให้อ่านง่ายบนมือถือ */
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 13px !important; }
         
-        /* เพิ่มช่องไฟ (Padding) ของการ์ดบอสให้หนาขึ้น กดและมองเห็นง่ายขึ้น */
         .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 8px 10px !important; margin-bottom: 5px !important; border-radius: 6px !important; }
         .in-phase-bg { border-left: 5px solid #ff4757 !important; }
         .upcoming-bg { border-left: 5px solid #2ed573 !important; }
         
-        /* ล็อกสัดส่วนคอลัมน์ให้ตรงแนวกันดิ่งเหมือนเดิม */
+        /* 🛠️ ปรับโครงสร้าง Column ใหม่ */
         .col-boss-info { width: 38% !important; min-width: 100px; flex-shrink: 0; }
-        .col-boss-time { width: 18% !important; text-align: left !important; flex-shrink: 0; }
-        .col-boss-action { width: 44% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
+        .col-boss-center { width: 32% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
+        .col-boss-action { width: 30% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
         
-        /* ขยายขนาดตัวหนังสือเวลาและเลเวล */
         .boss-title { font-size: 13px !important; font-weight: bold; }
         .time-text { font-size: 13px !important; font-weight: bold; }
         .countdown-text { font-size: 13px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         
-        /* ขยายขนาดกล่องอินพุตและปุ่มกดให้ใหญ่เต็มมือขึ้น */
         .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 30px !important; }
         .btn-custom-sm { font-size: 12px !important; padding: 4px 10px !important; height: 28px !important; line-height: 1.2 !important; font-weight: bold !important; }
         .btn-delete { padding: 4px 8px !important; height: 28px !important; font-size: 12px !important; }
         
         h2 { font-size: 18px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 14px !important; margin-top: 12px !important; margin-bottom: 6px !important; font-weight: bold !important; }
-        .badge-phase { font-size: 11px !important; padding: 4px 6px !important; font-weight: bold; }
+        .badge-phase { font-size: 11px !important; padding: 4px 8px !important; font-weight: bold; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2" style="max-width: 600px !important;">
@@ -151,11 +148,12 @@ HTML_TEMPLATE = """
             <div class="col-boss-info">
                 <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
             </div>
-            <div class="col-boss-time">
-                <span class="text-secondary time-text">{{ item.t_str[11:16] }}</span>
-            </div>
-            <div class="col-boss-action">
+            
+            <div class="col-boss-center">
                 <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
+            </div>
+            
+            <div class="col-boss-action">
                 <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
                 <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
             </div>
@@ -172,9 +170,11 @@ HTML_TEMPLATE = """
             <div class="col-boss-info">
                 <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
             </div>
-            <div class="col-boss-time">
+            
+            <div class="col-boss-center">
                 <span class="text-warning time-text">{{ item.t_str[11:16] }}</span>
             </div>
+            
             <div class="col-boss-action">
                 <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                 <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -285,7 +285,9 @@ HTML_TEMPLATE = """
 
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
-        setInterval(() => { window.location.reload(); }, 30000);
+        
+        // 🛠️ ปรับเวลาออโต้รีเฟรชหน้าเว็บเป็นทุก 45 วินาที เพื่อลดโอกาสชนกันขณะกดปุ่มเวลาใหม่
+        setInterval(() => { window.location.reload(); }, 45000);
     </script>
 </body>
 </html>
