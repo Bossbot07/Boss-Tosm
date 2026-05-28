@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - แก้บั๊ก Loop รีเฟรชรัวเรียบร้อยแล้ว
+# HTML UI - จัดคอลัมน์ให้ตรงแนวเดียวกันเป๊ะๆ
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -98,12 +98,17 @@ HTML_TEMPLATE = """
         .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 4px 8px !important; margin-bottom: 3px !important; border-radius: 4px !important; }
         .in-phase-bg { border-left: 4px solid #ff4757 !important; }
         .upcoming-bg { border-left: 4px solid #2ed573 !important; }
-        .countdown-text { font-size: 11px !important; font-weight: bold !important; color: #2ed573 !important; }
+        
+        /* 🛠️ ล็อกสัดส่วนความกว้างให้แต่ละคอลัมน์ตรงกันดิ่ง */
+        .col-boss-info { width: 35% !important; min-width: 95px; flex-shrink: 0; }
+        .col-boss-time { width: 20% !important; text-align: left !important; flex-shrink: 0; }
+        .col-boss-action { width: 45% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
+        
+        .countdown-text { font-size: 11px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         .form-control-sm, .form-select-sm { font-size: 11px !important; padding: 2px 5px !important; height: 24px !important; }
         .btn-custom-sm { font-size: 10px !important; padding: 2px 6px !important; height: 22px !important; line-height: 1 !important; font-weight: bold !important; }
         h2 { font-size: 15px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 12px !important; margin-top: 8px !important; margin-bottom: 4px !important; font-weight: bold !important; }
-        h6 { font-size: 11px !important; margin: 0 !important; }
     </style>
 </head>
 <body class="container-fluid px-2 py-1" style="max-width: 600px !important;">
@@ -131,12 +136,15 @@ HTML_TEMPLATE = """
     <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
     <div class="d-flex flex-column gap-1 mb-2">
         {% for item in in_phase_list_sorted %}
-        <div class="boss-card in-phase-bg d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
-                <h6 class="text-danger fw-bold m-0">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</h6>
-                <span class="badge bg-danger" style="font-size: 9px; padding: 2px 4px;">เข้าเฟส {{ item.minutes_passed }} น.</span>
+        <div class="boss-card in-phase-bg d-flex align-items-center m-0">
+            <div class="col-boss-info">
+                <span class="text-danger fw-bold">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
             </div>
-            <div class="d-flex gap-1">
+            <div class="col-boss-time">
+                <span class="text-secondary fw-bold" style="font-size: 11px;">{{ item.t_str[11:16] }}</span>
+            </div>
+            <div class="col-boss-action">
+                <span class="badge bg-danger" style="font-size: 9px; padding: 3px 4px;">เฟส {{ item.minutes_passed }} น.</span>
                 <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
                 <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm px-1">🗑️</button>
             </div>
@@ -149,12 +157,14 @@ HTML_TEMPLATE = """
     <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
     <div class="d-flex flex-column gap-1">
         {% for item in active_spawns_sorted %}
-        <div class="boss-card upcoming-bg d-flex justify-content-between align-items-center">
-            <div>
+        <div class="boss-card upcoming-bg d-flex align-items-center m-0">
+            <div class="col-boss-info">
                 <span class="text-success fw-bold">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
-                <span class="text-muted ms-2" style="font-size: 10px;">เกิด: <b class="text-warning">{{ item.t_str[11:16] }}</b></span>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="col-boss-time">
+                <span class="text-warning fw-bold" style="font-size: 11px;">{{ item.t_str[11:16] }}</span>
+            </div>
+            <div class="col-boss-action">
                 <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                 <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm px-1">🗑️</button>
             </div>
@@ -243,7 +253,6 @@ HTML_TEMPLATE = """
                 const diff = targetTime - now;
 
                 if (diff <= 0) {
-                    // 🛠️ แก้บั๊ก: เปลี่ยนข้อความเฉลี่ยและเปลี่ยนสีปกติ โดยไม่สั่งหลุดลูปรีเฟรชรัวอีกต่อไป
                     el.innerHTML = "💥 เกิดแล้ว!";
                     el.style.color = "#ff4757";
                 } else {
@@ -265,8 +274,6 @@ HTML_TEMPLATE = """
 
         setInterval(updateCountdowns, 1000);
         updateCountdowns();
-
-        // 🔄 ให้เว็บดึงข้อมูลอัปเดตใหม่ทุก ๆ 30 วินาทีแบบนุ่ม ๆ ปกติ
         setInterval(() => { window.location.reload(); }, 30000);
     </script>
 </body>
