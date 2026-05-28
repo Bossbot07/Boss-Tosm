@@ -84,7 +84,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - จัดคอลัมน์ให้ตรงแนวเดียวกันเป๊ะๆ
+# HTML UI - แสดงนาทีที่เข้าเฟสตามจริง พร้อมจัดแนวตรงกันเป๊ะ
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -99,7 +99,7 @@ HTML_TEMPLATE = """
         .in-phase-bg { border-left: 4px solid #ff4757 !important; }
         .upcoming-bg { border-left: 4px solid #2ed573 !important; }
         
-        /* 🛠️ ล็อกสัดส่วนความกว้างให้แต่ละคอลัมน์ตรงกันดิ่ง */
+        /* ล็อกสัดส่วนคอลัมน์ให้ตรงกันเป๊ะทั้งสองโซน */
         .col-boss-info { width: 35% !important; min-width: 95px; flex-shrink: 0; }
         .col-boss-time { width: 20% !important; text-align: left !important; flex-shrink: 0; }
         .col-boss-action { width: 45% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
