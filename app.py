@@ -58,33 +58,45 @@ def save_data(data):
     except Exception as e:
         print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
+# 🛠️ แก้ไขฟังก์ชันอัปเดตสถานะบอส (เปรียบเทียบ Timezone ให้ถูกต้อง)
 def update_boss_statuses():
     boss_db = load_data()
     now = get_bkk_now()
     has_change = False
 
+    # ตรวจสอบบอสรอเกิด -> ถ้าถึงเวลาเกิดแล้ว ให้ย้ายไปเข้าเฟส
     for key, t_str in list(boss_db["active_spawns"].items()):
         try:
-            target_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            # แปลงข้อเวลาจาก DB เป็นวัตถุเวลา แล้วผูก Timezone กรุงเทพฯ เข้าไปให้ตรงกับตัวแปร now
+            naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
+            target_time = BKK_TZ.localize(naive_time)
+            
             if now >= target_time:
                 boss_db["in_phase"][key] = t_str
                 boss_db["active_spawns"].pop(key, None)
                 has_change = True
-        except: continue
+        except Exception as e: 
+            print(f"Error parsing active_spawns time: {e}")
+            continue
 
+    # ตรวจสอบบอสที่เข้าเฟสอยู่ -> ถ้าเกิน 90 นาทีให้ลบออก
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
+            spawn_time = BKK_TZ.localize(naive_time)
+            
             if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
-        except: continue
+        except Exception as e:
+            print(f"Error parsing in_phase time: {e}")
+            continue
 
     if has_change:
         save_data(boss_db)
     return boss_db
 
-# HTML UI - ปรับแก้ระบบโฟกัสอัตโนมัติ
+# HTML UI - หน้าตาเวอร์ชันขยายใหญ่คงเดิม
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -117,6 +129,8 @@ HTML_TEMPLATE = """
         h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
         .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
+        
+        .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
@@ -188,9 +202,9 @@ HTML_TEMPLATE = """
 
     </div>
 
-    <div class="modal fade" id="killModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
-            <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important; box-shadow: 0px 4px 20px rgba(0,0,0,0.8);">
                 <div class="modal-body p-3">
                     <input type="hidden" id="modal-boss-id">
                     <input type="hidden" id="modal-ch">
@@ -219,7 +233,6 @@ HTML_TEMPLATE = """
             killModal.show();
         }
 
-        /* 🛠️ แก้บั๊ก: บังคับให้ระบบ Focus ไปที่ช่องพิมพ์เมื่อหน้าต่างอนิเมชันเปิดเสร็จสมบูรณ์ร้อยเปอร์เซ็นต์ */
         killModalElement.addEventListener('shown.bs.modal', function () {
             document.getElementById('modal-time-input').focus();
         });
@@ -264,6 +277,7 @@ HTML_TEMPLATE = """
         function updateCountdowns() {
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
+            let needReload = false;
 
             elements.forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
@@ -273,6 +287,8 @@ HTML_TEMPLATE = """
                 if (diff <= 0) {
                     el.innerHTML = "💥 เกิดแล้ว!";
                     el.style.color = "#ff4757";
+                    // 💡 ถ้านับถอยหลังหมดเวลาแล้ว แต่ตัวบอสยังอยู่ในหน้าเว็บตรงส่วน Upcoming ให้สั่งรีเฟรชหน้าจอเพื่อกระตุ้น Python ให้ย้ายกลุ่มบอสขึ้นไปฝั่ง In Phase
+                    needReload = true;
                 } else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -288,6 +304,11 @@ HTML_TEMPLATE = """
                     }
                 }
             });
+
+            if (needReload) {
+                // รอสัก 1 วินาทีหลังจากคำนวณเสร็จ เพื่อให้ Python เคลียร์สถานะหลังบ้านแล้วโหลดใหม่
+                setTimeout(() => { window.location.reload(); }, 1000);
+            }
         }
 
         setInterval(updateCountdowns, 1000);
@@ -394,6 +415,7 @@ def add_boss():
             except: pass
             
         spawn_time = get_bkk_now() + timedelta(minutes=base_min)
+        # เซฟลงฐานข้อมูลเป็น string แบบไม่มี timezone เพื่อความเสถียร
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
         save_data(boss_db)
     except: pass
