@@ -14,12 +14,19 @@ BKK_TZ = pytz.timezone('Asia/Bangkok')
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์
-def load_data():
+# ฟังก์ชันดึงข้อมูลแยกตามห้อง (ถ้าไม่มีชื่อห้องจะใช้ห้องหลัก default)
+def load_data(room_name="default"):
     default_data = {"active_spawns": {}, "in_phase": {}}
+    # เคลียร์ชื่อห้องให้ปลอดภัย
+    room_key = "".join(c for c in room_name if c.isalnum() or c in ('-', '_')).strip()
+    if not room_key:
+        room_key = "default"
+        
+    db_name = f"tosm_boss_db_{room_key}"
+    
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
+        response = requests.get(f"{REDIS_URL}/get/{db_name}", headers=headers, timeout=5)
         
         if response.status_code == 200:
             res_json = response.json()
@@ -27,10 +34,8 @@ def load_data():
             
             if result:
                 if isinstance(result, str):
-                    try:
-                        data = json.loads(result)
-                    except:
-                        data = json.loads(result)
+                    try: data = json.loads(result)
+                    except: data = json.loads(result)
                 else:
                     data = result
                 
@@ -39,35 +44,39 @@ def load_data():
                     "in_phase": data.get("in_phase", {})
                 }
         else:
-            print(f"⚠️ Upstash Error Code: {response.status_code}")
+            print(f"⚠️ Upstash Error Code: {response.status_code} for room: {room_key}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลห้อง {room_key} ล้มเหลว: {e}")
     return default_data
 
-# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
-def save_data(data):
+# ฟังก์ชันเซฟข้อมูลแยกตามห้อง
+def save_data(data, room_name="default"):
+    room_key = "".join(c for c in room_name if c.isalnum() or c in ('-', '_')).strip()
+    if not room_key:
+        room_key = "default"
+        
+    db_name = f"tosm_boss_db_{room_key}"
+    
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         payload = json.dumps(data)
         
-        response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
+        response = requests.post(f"{REDIS_URL}/set/{db_name}", headers=headers, data=payload, timeout=5)
         if response.status_code == 200:
-            print("✅ บันทึกข้อมูลลง Upstash สำเร็จ!")
+            print(f"✅ บันทึกข้อมูลลง Upstash ห้อง [{room_key}] สำเร็จ!")
         else:
-            print(f"❌ เซฟไม่สำเร็จ Code: {response.status_code}")
+            print(f"❌ เซฟห้อง {room_key} ไม่สำเร็จ Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
+        print(f"❌ บันทึกข้อมูลออนไลน์ห้อง {room_key} ล้มเหลว: {e}")
 
-# 🛠️ แก้ไขฟังก์ชันอัปเดตสถานะบอส (เปรียบเทียบ Timezone ให้ถูกต้อง)
-def update_boss_statuses():
-    boss_db = load_data()
+# ฟังก์ชันอัปเดตสถานะแยกตามห้อง
+def update_boss_statuses(room_name="default"):
+    boss_db = load_data(room_name)
     now = get_bkk_now()
     has_change = False
 
-    # ตรวจสอบบอสรอเกิด -> ถ้าถึงเวลาเกิดแล้ว ให้ย้ายไปเข้าเฟส
     for key, t_str in list(boss_db["active_spawns"].items()):
         try:
-            # แปลงข้อเวลาจาก DB เป็นวัตถุเวลา แล้วผูก Timezone กรุงเทพฯ เข้าไปให้ตรงกับตัวแปร now
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
             target_time = BKK_TZ.localize(naive_time)
             
@@ -75,11 +84,8 @@ def update_boss_statuses():
                 boss_db["in_phase"][key] = t_str
                 boss_db["active_spawns"].pop(key, None)
                 has_change = True
-        except Exception as e: 
-            print(f"Error parsing active_spawns time: {e}")
-            continue
+        except: continue
 
-    # ตรวจสอบบอสที่เข้าเฟสอยู่ -> ถ้าเกิน 90 นาทีให้ลบออก
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
@@ -88,22 +94,20 @@ def update_boss_statuses():
             if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
-        except Exception as e:
-            print(f"Error parsing in_phase time: {e}")
-            continue
+        except: continue
 
     if has_change:
-        save_data(boss_db)
+        save_data(boss_db, room_name)
     return boss_db
 
-# HTML UI - หน้าตาเวอร์ชันขยายใหญ่คงเดิม
+# HTML UI - เพิ่มกล่องจัดการห้อง (Room Controls)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOSM Boss Tracker</title>
+    <title>TOSM Boss Tracker - ห้อง: {{ current_room }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 15px !important; }
@@ -131,12 +135,15 @@ HTML_TEMPLATE = """
         .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
+        
+        /* สไตล์พิเศษสำหรับกล่องสลับห้อง */
+        .room-bar { background-color: #1a252f !important; border: 1px dashed #34495e !important; border-radius: 8px; padding: 10px !important; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         
-        <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
             <div class="d-flex gap-1 align-items-center">
                 <span class="text-muted" style="font-size: 13px;">เรียง:</span>
@@ -145,6 +152,14 @@ HTML_TEMPLATE = """
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
                 </select>
             </div>
+        </div>
+
+        <div class="room-bar mb-3 d-flex align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-1 flex-grow-1">
+                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🏠 ห้องปัจจุบัน:</span>
+                <input type="text" id="roomInput" class="form-control form-control-sm bg-dark text-white border-info fw-bold" value="{{ current_room }}" placeholder="ชื่อห้อง...">
+            </div>
+            <button onclick="switchRoom()" class="btn btn-info text-dark btn-custom-sm" style="height: 38px !important;">🚪 เข้าห้อง</button>
         </div>
         
         <div class="boss-card p-2 mb-3">
@@ -174,7 +189,7 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
+            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสในห้องนี้เข้าเฟส...</p>
             {% endfor %}
         </div>
 
@@ -196,7 +211,7 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
+            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสรอเกิดในห้องนี้...</p>
             {% endfor %}
         </div>
 
@@ -226,6 +241,22 @@ HTML_TEMPLATE = """
         const killModalElement = document.getElementById('killModal');
         const killModal = new bootstrap.Modal(killModalElement);
         
+        // ฟังก์ชันเปลี่ยนห้อง
+        function switchRoom() {
+            const roomName = document.getElementById('roomInput').value.trim();
+            if(!roomName) return alert('กรุณากรอกชื่อห้องด้วยครับ');
+            document.cookie = "boss_room_name=" + encodeURIComponent(roomName) + "; path=/; max-age=31536000";
+            window.location.reload();
+        }
+
+        // รองรับการกด Enter ในช่องพิมพ์ชื่อห้อง
+        document.getElementById('roomInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                switchRoom();
+            }
+        });
+
         function killBoss(bossId, ch) {
             document.getElementById('modal-boss-id').value = bossId;
             document.getElementById('modal-ch').value = ch;
@@ -287,7 +318,6 @@ HTML_TEMPLATE = """
                 if (diff <= 0) {
                     el.innerHTML = "💥 เกิดแล้ว!";
                     el.style.color = "#ff4757";
-                    // 💡 ถ้านับถอยหลังหมดเวลาแล้ว แต่ตัวบอสยังอยู่ในหน้าเว็บตรงส่วน Upcoming ให้สั่งรีเฟรชหน้าจอเพื่อกระตุ้น Python ให้ย้ายกลุ่มบอสขึ้นไปฝั่ง In Phase
                     needReload = true;
                 } else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -306,7 +336,6 @@ HTML_TEMPLATE = """
             });
 
             if (needReload) {
-                // รอสัก 1 วินาทีหลังจากคำนวณเสร็จ เพื่อให้ Python เคลียร์สถานะหลังบ้านแล้วโหลดใหม่
                 setTimeout(() => { window.location.reload(); }, 1000);
             }
         }
@@ -321,7 +350,9 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def index():
-    boss_db = update_boss_statuses()
+    # ดึงค่าห้องปัจจุบันจาก Cookie (ถ้าไม่มีให้ตั้งชื่อว่า default)
+    room_name = request.cookies.get('boss_room_name', 'default')
+    boss_db = update_boss_statuses(room_name)
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
     
@@ -387,13 +418,15 @@ def index():
         HTML_TEMPLATE, 
         in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted,
-        current_sort=sort_by
+        current_sort=sort_by,
+        current_room=room_name
     )
 
 @app.route('/add', methods=['POST'])
 def add_boss():
     try:
-        boss_db = load_data()
+        room_name = request.cookies.get('boss_room_name', 'default')
+        boss_db = load_data(room_name)
         boss_id = request.form.get('boss_id').strip()
         ch = request.form.get('ch').strip()
         time_input = request.form.get('time_input', '').strip()
@@ -415,16 +448,16 @@ def add_boss():
             except: pass
             
         spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-        # เซฟลงฐานข้อมูลเป็น string แบบไม่มี timezone เพื่อความเสถียร
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
+        save_data(boss_db, room_name)
     except: pass
     return jsonify({"status": "success"})
 
 @app.route('/kill/<boss_id>/<ch>')
 def kill_boss(boss_id, ch):
     try:
-        boss_db = load_data()
+        room_name = request.cookies.get('boss_room_name', 'default')
+        boss_db = load_data(room_name)
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
         
@@ -443,18 +476,19 @@ def kill_boss(boss_id, ch):
             
         spawn_time = get_bkk_now() + timedelta(minutes=base_min)
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
+        save_data(boss_db, room_name)
     except: pass
     return jsonify({"status": "success"})
 
 @app.route('/delete/<boss_id>/<ch>')
 def delete_boss(boss_id, ch):
     try:
-        boss_db = load_data()
+        room_name = request.cookies.get('boss_room_name', 'default')
+        boss_db = load_data(room_name)
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
-        save_data(boss_db)
+        save_data(boss_db, room_name)
     except: pass
     return jsonify({"status": "success"})
 
