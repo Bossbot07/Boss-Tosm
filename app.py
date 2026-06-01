@@ -78,7 +78,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - ปรับเปลี่ยนข้อความหัวข้อจาก ขั้นต่ำ เป็น เลเวล ตามคำขอ
+# HTML UI - อัปเดตแก้คำว่า "เลเวล:" และระบบ UI ครบถ้วนทั้งหมด
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -118,7 +118,6 @@ HTML_TEMPLATE = """
         .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
         .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
         .red-badge-delete:hover { color: #ffcccc; }
-        .active-filter-btn { background-color: #0dcaf0 !important; color: #000 !important; border-color: #0dcaf0 !important; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
@@ -236,9 +235,9 @@ HTML_TEMPLATE = """
         const killModalElement = document.getElementById('killModal');
         const killModal = new bootstrap.Modal(killModalElement);
         
-        let currentMode = "all"; // โหมดปัจจุบัน: all, under100, redcard
-        let minLevelFilter = 0;   // เลเวลขั้นต่ำ (+)
-        let redCards = [];       // รายการเลเวลการ์ดแดง
+        let currentMode = "all"; 
+        let minLevelFilter = 0;   
+        let redCards = [];       
 
         function getCookie(name) {
             let value = "; " + document.cookie;
@@ -247,7 +246,6 @@ HTML_TEMPLATE = """
             return null;
         }
 
-        // --- 🔴 จัดการระบบการ์ดแดง ---
         function loadRedCards() {
             const saved = getCookie('tosm_red_cards');
             if (saved) {
@@ -298,7 +296,6 @@ HTML_TEMPLATE = """
             });
         }
 
-        // --- 🔍 ระบบคัดกรอง Logic ---
         function setMode(mode) {
             currentMode = mode;
             document.cookie = "tosm_filter_mode=" + mode + "; path=/; max-age=31536000";
@@ -475,3 +472,145 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
+
+@app.route('/')
+def index():
+    boss_db = update_boss_statuses()
+    now = get_bkk_now()
+    sort_by = request.cookies.get('boss_sort_order', 'time')
+    
+    in_phase_list = []
+    for key, t_str in boss_db["in_phase"].items():
+        if '-' not in str(key): continue
+        boss_id, ch = key.split('-', 1)
+        try:
+            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            diff = now - spawn_time
+            minutes_passed = int(diff.total_seconds() // 60)
+            if minutes_passed < 0: minutes_passed = 0
+        except:
+            spawn_time = now
+            minutes_passed = 0
+            
+        try: boss_level = int(boss_id)
+        except: boss_level = -1
+            
+        in_phase_list.append({
+            "boss_id": boss_id,
+            "boss_level": boss_level,
+            "ch": ch,
+            "t_str": t_str,
+            "spawn_time_obj": spawn_time,
+            "minutes_passed": minutes_passed
+        })
+    
+    if sort_by == 'level':
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else:
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+    
+    upcoming_list = []
+    for key, t_str in boss_db["active_spawns"].items():
+        if '-' not in str(key): continue
+        boss_id, ch = key.split('-', 1)
+        try:
+            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
+            iso_time = spawn_time.isoformat()
+        except:
+            spawn_time = now
+            iso_time = now.isoformat()
+        
+        try: boss_level = int(boss_id)
+        except: boss_level = -1
+            
+        upcoming_list.append({
+            "boss_id": boss_id,
+            "boss_level": boss_level,
+            "ch": ch,
+            "t_str": t_str,
+            "spawn_time_obj": spawn_time,
+            "iso_time": iso_time
+        })
+        
+    if sort_by == 'level':
+        active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else:
+        active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
+    
+    # แก้ไขส่งค่า current_sort ไปที่ HTML_TEMPLATE ให้ปุ่มเลือกสลับการเรียงลำดับทำงานได้อย่างถูกต้องครบถ้วน
+    return render_template_string(
+        HTML_TEMPLATE, 
+        in_phase_list_sorted=in_phase_list_sorted, 
+        active_spawns_sorted=active_spawns_sorted,
+        current_sort=sort_by
+    )
+
+@app.route('/add', methods=['POST'])
+def add_boss():
+    try:
+        boss_db = load_data()
+        boss_id = request.form.get('boss_id').strip()
+        ch = request.form.get('ch').strip()
+        time_input = request.form.get('time_input', '').strip()
+        
+        key = f"{boss_id}-{ch}"
+        boss_db["active_spawns"].pop(key, None)
+        boss_db["in_phase"].pop(key, None)
+        
+        base_min = 0
+        if time_input:
+            try:
+                is_neg = time_input.startswith("-")
+                clean = time_input.lstrip("-")
+                if "." in clean:
+                    h, m = map(int, clean.split("."))
+                    base_min = (h * 60) + m
+                else: base_min = int(clean)
+                if is_neg: base_min = -base_min
+            except: pass
+            
+        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
+        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
+
+@app.route('/kill/<boss_id>/<ch>')
+def kill_boss(boss_id, ch):
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        boss_db["in_phase"].pop(key, None)
+        
+        time_input = request.args.get('time_input', '').strip()
+        base_min = 0
+        if time_input:
+            try:
+                is_neg = time_input.startswith("-")
+                clean = time_input.lstrip("-")
+                if "." in clean:
+                    h, m = map(int, clean.split("."))
+                    base_min = (h * 60) + m
+                else: base_min = int(clean)
+                if is_neg: base_min = -base_min
+            except: pass
+            
+        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
+        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
+
+@app.route('/delete/<boss_id>/<ch>')
+def delete_boss(boss_id, ch):
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        boss_db["active_spawns"].pop(key, None)
+        boss_db["in_phase"].pop(key, None)
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
