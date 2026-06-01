@@ -14,19 +14,12 @@ BKK_TZ = pytz.timezone('Asia/Bangkok')
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลแยกตามห้อง (ถ้าไม่มีชื่อห้องจะใช้ห้องหลัก default)
-def load_data(room_name="default"):
+# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์
+def load_data():
     default_data = {"active_spawns": {}, "in_phase": {}}
-    # เคลียร์ชื่อห้องให้ปลอดภัย
-    room_key = "".join(c for c in room_name if c.isalnum() or c in ('-', '_')).strip()
-    if not room_key:
-        room_key = "default"
-        
-    db_name = f"tosm_boss_db_{room_key}"
-    
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
-        response = requests.get(f"{REDIS_URL}/get/{db_name}", headers=headers, timeout=5)
+        response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
         
         if response.status_code == 200:
             res_json = response.json()
@@ -44,34 +37,28 @@ def load_data(room_name="default"):
                     "in_phase": data.get("in_phase", {})
                 }
         else:
-            print(f"⚠️ Upstash Error Code: {response.status_code} for room: {room_key}")
+            print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ โหลดข้อมูลห้อง {room_key} ล้มเหลว: {e}")
+        print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
-# ฟังก์ชันเซฟข้อมูลแยกตามห้อง
-def save_data(data, room_name="default"):
-    room_key = "".join(c for c in room_name if c.isalnum() or c in ('-', '_')).strip()
-    if not room_key:
-        room_key = "default"
-        
-    db_name = f"tosm_boss_db_{room_key}"
-    
+# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
+def save_data(data):
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         payload = json.dumps(data)
         
-        response = requests.post(f"{REDIS_URL}/set/{db_name}", headers=headers, data=payload, timeout=5)
+        response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
         if response.status_code == 200:
-            print(f"✅ บันทึกข้อมูลลง Upstash ห้อง [{room_key}] สำเร็จ!")
+            print("✅ บันทึกข้อมูลลง Upstash สำเร็จ!")
         else:
-            print(f"❌ เซฟห้อง {room_key} ไม่สำเร็จ Code: {response.status_code}")
+            print(f"❌ เซฟไม่สำเร็จ Code: {response.status_code}")
     except Exception as e:
-        print(f"❌ บันทึกข้อมูลออนไลน์ห้อง {room_key} ล้มเหลว: {e}")
+        print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
-# ฟังก์ชันอัปเดตสถานะแยกตามห้อง
-def update_boss_statuses(room_name="default"):
-    boss_db = load_data(room_name)
+# ฟังก์ชันอัปเดตสถานะบอส
+def update_boss_statuses():
+    boss_db = load_data()
     now = get_bkk_now()
     has_change = False
 
@@ -97,17 +84,17 @@ def update_boss_statuses(room_name="default"):
         except: continue
 
     if has_change:
-        save_data(boss_db, room_name)
+        save_data(boss_db)
     return boss_db
 
-# HTML UI - เพิ่มกล่องจัดการห้อง (Room Controls)
+# HTML UI - ปรับแถบตัวกรองให้เป็น ปุ่มทั้งหมด + ช่องกรอกตัวเลขเอง
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOSM Boss Tracker - ห้อง: {{ current_room }}</title>
+    <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 15px !important; }
@@ -136,14 +123,16 @@ HTML_TEMPLATE = """
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         
-        /* สไตล์พิเศษสำหรับกล่องสลับห้อง */
-        .room-bar { background-color: #1a252f !important; border: 1px dashed #34495e !important; border-radius: 8px; padding: 10px !important; }
+        /* 🛠️ สไตล์สำหรับแผงกรองเลเวลแบบกำหนดเอง */
+        .filter-container { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #3a3a3a; }
+        .btn-filter-all { font-size: 14px !important; height: 38px !important; font-weight: bold !important; }
+        .input-filter-level { font-size: 14px !important; height: 38px !important; max-width: 160px; text-align: center; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         
-        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
             <div class="d-flex gap-1 align-items-center">
                 <span class="text-muted" style="font-size: 13px;">เรียง:</span>
@@ -154,12 +143,13 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <div class="room-bar mb-3 d-flex align-items-center justify-content-between gap-2">
+        <div class="filter-container d-flex align-items-center justify-content-between gap-2 mb-3">
             <div class="d-flex align-items-center gap-1 flex-grow-1">
-                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🏠 ห้องปัจจุบัน:</span>
-                <input type="text" id="roomInput" class="form-control form-control-sm bg-dark text-white border-info fw-bold" value="{{ current_room }}" placeholder="ชื่อห้อง...">
+                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 กรองเลเวล:</span>
+                <input type="number" id="levelFilterInput" class="form-control form-control-sm input-filter-level bg-dark text-warning border-info fw-bold" placeholder="ระบุเลเวลขั้นต่ำ..." oninput="handleLevelInput(this.value)">
+                <span class="text-muted fw-bold style="font-size: 14px;">+</span>
             </div>
-            <button onclick="switchRoom()" class="btn btn-info text-dark btn-custom-sm" style="height: 38px !important;">🚪 เข้าห้อง</button>
+            <button class="btn btn-outline-light btn-filter-all btn-custom-sm" id="btnFilterAll" onclick="clearLevelFilter()">👁️ แสดงทั้งหมด</button>
         </div>
         
         <div class="boss-card p-2 mb-3">
@@ -172,9 +162,9 @@ HTML_TEMPLATE = """
         </div>
 
         <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
-        <div class="d-flex flex-column gap-1 mb-4">
+        <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
-            <div class="boss-card in-phase-bg d-flex align-items-center m-0">
+            <div class="boss-card in-phase-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <div class="col-boss-info">
                     <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
                 </div>
@@ -189,14 +179,15 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสในห้องนี้เข้าเฟส...</p>
+            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสเลเวลถึงที่กำหนดไว้...</p>
         </div>
 
         <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
-        <div class="d-flex flex-column gap-1">
+        <div class="d-flex flex-column gap-1" id="upcoming-container">
             {% for item in active_spawns_sorted %}
-            <div class="boss-card upcoming-bg d-flex align-items-center m-0">
+            <div class="boss-card upcoming-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <div class="col-boss-info">
                     <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
                 </div>
@@ -211,8 +202,9 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0" style="font-size: 14px;">ไม่มีบอสรอเกิดในห้องนี้...</p>
+            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
             {% endfor %}
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสเลเวลถึงที่กำหนดไว้...</p>
         </div>
 
     </div>
@@ -241,20 +233,84 @@ HTML_TEMPLATE = """
         const killModalElement = document.getElementById('killModal');
         const killModal = new bootstrap.Modal(killModalElement);
         
-        // ฟังก์ชันเปลี่ยนห้อง
-        function switchRoom() {
-            const roomName = document.getElementById('roomInput').value.trim();
-            if(!roomName) return alert('กรุณากรอกชื่อห้องด้วยครับ');
-            document.cookie = "boss_room_name=" + encodeURIComponent(roomName) + "; path=/; max-age=31536000";
-            window.location.reload();
+        function getCookie(name) {
+            let value = "; " + document.cookie;
+            let parts = value.split("; " + name + "=");
+            if (parts.length == 2) return parts.pop().split(";").shift();
+            return null;
         }
 
-        // รองรับการกด Enter ในช่องพิมพ์ชื่อห้อง
-        document.getElementById('roomInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                switchRoom();
+        // ฟังก์ชันรับค่าเมื่อมีการพิมพ์เลเวล
+        function handleLevelInput(val) {
+            const cleanVal = val.trim();
+            document.cookie = "boss_level_filter_val=" + encodeURIComponent(cleanVal) + "; path=/; max-age=31536000";
+            applyFilter(cleanVal);
+        }
+
+        // ฟังก์ชันเมื่อกดล้างตัวกรอง (เลือกทั้งหมด)
+        function clearLevelFilter() {
+            document.getElementById('levelFilterInput').value = "";
+            document.cookie = "boss_level_filter_val=; path=/; max-age=31536000";
+            applyFilter("");
+        }
+
+        // ฟังก์ชันคำนวณซ่อน/แสดง บอสตามเลเวลที่ระบุ
+        function applyFilter(targetLevelStr) {
+            const btnAll = document.getElementById('btnFilterAll');
+            const targetLevel = parseInt(targetLevelStr) || 0;
+
+            if (targetLevel > 0) {
+                btnAll.classList.remove('btn-outline-light');
+                btnAll.classList.add('btn-info', 'text-dark');
+            } else {
+                btnAll.classList.remove('btn-info', 'text-dark');
+                btnAll.classList.add('btn-outline-light');
             }
+
+            const rows = document.querySelectorAll('.boss-item-row');
+            rows.forEach(row => {
+                const currentLvl = parseInt(row.getAttribute('data-boss-level')) || 0;
+                
+                // เงื่อนไข: ถ้าไม่ได้กรอกเลเวล หรือบอสเลเวลมากกว่า/เท่ากับ เลเวลที่ระบุ ให้แสดงตัว
+                if (!targetLevelStr || currentLvl >= targetLevel) {
+                    row.classList.remove('d-none');
+                    row.classList.add('d-flex');
+                } else {
+                    row.classList.remove('d-flex');
+                    row.classList.add('d-none');
+                }
+            });
+
+            checkContainerEmpty('in-phase-container');
+            checkContainerEmpty('upcoming-container');
+        }
+
+        function checkContainerEmpty(containerId) {
+            const container = document.getElementById(containerId);
+            if(!container) return;
+            const visibleRows = container.querySelectorAll('.boss-item-row:not(.d-none)');
+            const emptyNotice = container.querySelector('.empty-text-notice');
+            const filterNotice = container.querySelector('.filter-empty-notice');
+
+            if(visibleRows.length === 0) {
+                if(emptyNotice && container.querySelectorAll('.boss-item-row').length === 0) {
+                    emptyNotice.classList.remove('d-none');
+                    if(filterNotice) filterNotice.classList.add('d-none');
+                } else {
+                    if(emptyNotice) emptyNotice.classList.add('d-none');
+                    if(filterNotice) filterNotice.classList.remove('d-none');
+                }
+            } else {
+                if(emptyNotice) emptyNotice.classList.add('d-none');
+                if(filterNotice) filterNotice.classList.add('d-none');
+            }
+        }
+
+        // โหลดหน้าเว็บขึ้นมาใหม่ ให้ดึงค่าที่พิมพ์ค้างไว้กลับมาใช้
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedFilterVal = decodeURIComponent(getCookie('boss_level_filter_val') || "");
+            document.getElementById('levelFilterInput').value = savedFilterVal;
+            applyFilter(savedFilterVal);
         });
 
         function killBoss(bossId, ch) {
@@ -350,9 +406,7 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def index():
-    # ดึงค่าห้องปัจจุบันจาก Cookie (ถ้าไม่มีให้ตั้งชื่อว่า default)
-    room_name = request.cookies.get('boss_room_name', 'default')
-    boss_db = update_boss_statuses(room_name)
+    boss_db = update_boss_statuses()
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
     
@@ -418,15 +472,13 @@ def index():
         HTML_TEMPLATE, 
         in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted,
-        current_sort=sort_by,
-        current_room=room_name
+        current_sort=sort_by
     )
 
 @app.route('/add', methods=['POST'])
 def add_boss():
     try:
-        room_name = request.cookies.get('boss_room_name', 'default')
-        boss_db = load_data(room_name)
+        boss_db = load_data()
         boss_id = request.form.get('boss_id').strip()
         ch = request.form.get('ch').strip()
         time_input = request.form.get('time_input', '').strip()
@@ -449,15 +501,14 @@ def add_boss():
             
         spawn_time = get_bkk_now() + timedelta(minutes=base_min)
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db, room_name)
+        save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
 
 @app.route('/kill/<boss_id>/<ch>')
 def kill_boss(boss_id, ch):
     try:
-        room_name = request.cookies.get('boss_room_name', 'default')
-        boss_db = load_data(room_name)
+        boss_db = load_data()
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
         
@@ -476,19 +527,18 @@ def kill_boss(boss_id, ch):
             
         spawn_time = get_bkk_now() + timedelta(minutes=base_min)
         boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db, room_name)
+        save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
 
 @app.route('/delete/<boss_id>/<ch>')
 def delete_boss(boss_id, ch):
     try:
-        room_name = request.cookies.get('boss_room_name', 'default')
-        boss_db = load_data(room_name)
+        boss_db = load_data()
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
-        save_data(boss_db, room_name)
+        save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
 
