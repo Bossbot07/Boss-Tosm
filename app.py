@@ -78,7 +78,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - อัปเกรดแผงควบคุมระบบกรอง + การ์ดแดง
+# HTML UI - ปรับเปลี่ยนข้อความหัวข้อจาก ขั้นต่ำ เป็น เลเวล ตามคำขอ
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -114,7 +114,6 @@ HTML_TEMPLATE = """
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         
-        /* 🛠️ สไตล์สำหรับระบบกรองและรายการการ์ดแดง */
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
         .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
         .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
@@ -144,8 +143,8 @@ HTML_TEMPLATE = """
             </div>
             
             <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary">
-                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 ขั้นต่ำ:</span>
-                <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="ระบุเลเวลขั้นต่ำ..." oninput="handleMinLevelInput(this.value)">
+                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 เลเวล:</span>
+                <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="พิมพ์กรองเลเวลที่ต้องการ..." oninput="handleMinLevelInput(this.value)">
                 <span class="text-muted fw-bold" style="font-size: 14px;">+</span>
             </div>
         </div>
@@ -269,7 +268,7 @@ HTML_TEMPLATE = """
             if (!lvl || lvl <= 0) return alert('กรุณากรอกเลเวลบอสที่ถูกต้องครับ');
             if (!redCards.includes(lvl)) {
                 redCards.push(lvl);
-                redCards.sort((a, b) => b - a); // เรียงจากมากไปน้อย
+                redCards.sort((a, b) => b - a);
                 saveRedCards();
                 renderRedCards();
                 applyAllFilters();
@@ -299,12 +298,11 @@ HTML_TEMPLATE = """
             });
         }
 
-        // --- 🔍 ระบบคัดกรอง Logic ผสม ---
+        // --- 🔍 ระบบคัดกรอง Logic ---
         function setMode(mode) {
             currentMode = mode;
             document.cookie = "tosm_filter_mode=" + mode + "; path=/; max-age=31536000";
             
-            // อัปเดตสีปุ่มควบคุม
             document.getElementById('btn-filter-all').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'all' ? 'btn-info text-dark' : 'btn-outline-light');
             document.getElementById('btn-filter-under100').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'under100' ? 'btn-info text-dark' : 'btn-outline-light');
             document.getElementById('btn-filter-redcard').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'redcard' ? 'btn-danger' : 'btn-outline-danger');
@@ -325,7 +323,6 @@ HTML_TEMPLATE = """
                 const lvl = parseInt(row.getAttribute('data-boss-level')) || 0;
                 let passMode = false;
 
-                // 1. เช็คเงื่อนไขโหมดปุ่มหลัก
                 if (currentMode === 'all') {
                     passMode = true;
                 } else if (currentMode === 'under100') {
@@ -334,13 +331,11 @@ HTML_TEMPLATE = """
                     if (redCards.includes(lvl)) passMode = true;
                 }
 
-                // 2. เช็คเงื่อนไขช่องกรอกเลเวลขั้นต่ำพ่วงด้วย (+)
                 let passMinLevel = true;
                 if (minLevelFilter > 0 && lvl < minLevelFilter) {
                     passMinLevel = false;
                 }
 
-                // สรุปผลการซ่อน/แสดง
                 if (passMode && passMinLevel) {
                     row.classList.remove('d-none');
                     row.classList.add('d-flex');
@@ -375,7 +370,6 @@ HTML_TEMPLATE = """
             }
         }
 
-        // รันครั้งแรกเมื่อโหลดหน้าเว็บ
         window.addEventListener('DOMContentLoaded', () => {
             loadRedCards();
             
@@ -390,7 +384,6 @@ HTML_TEMPLATE = """
             setMode(savedMode);
         });
 
-        // รองรับการกด Enter ในช่องเพิ่มการ์ดแดง
         document.getElementById('redCardInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') { e.preventDefault(); addRedCard(); }
         });
@@ -482,144 +475,3 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
-
-@app.route('/')
-def index():
-    boss_db = update_boss_statuses()
-    now = get_bkk_now()
-    sort_by = request.cookies.get('boss_sort_order', 'time')
-    
-    in_phase_list = []
-    for key, t_str in boss_db["in_phase"].items():
-        if '-' not in str(key): continue
-        boss_id, ch = key.split('-', 1)
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            diff = now - spawn_time
-            minutes_passed = int(diff.total_seconds() // 60)
-            if minutes_passed < 0: minutes_passed = 0
-        except:
-            spawn_time = now
-            minutes_passed = 0
-            
-        try: boss_level = int(boss_id)
-        except: boss_level = -1
-            
-        in_phase_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "minutes_passed": minutes_passed
-        })
-    
-    if sort_by == 'level':
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
-    
-    upcoming_list = []
-    for key, t_str in boss_db["active_spawns"].items():
-        if '-' not in str(key): continue
-        boss_id, ch = key.split('-', 1)
-        try:
-            spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            iso_time = spawn_time.isoformat()
-        except:
-            spawn_time = now
-            iso_time = now.isoformat()
-        
-        try: boss_level = int(boss_id)
-        except: boss_level = -1
-            
-        upcoming_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "iso_time": iso_time
-        })
-        
-    if sort_by == 'level':
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
-    
-    return render_template_string(
-        HTML_TEMPLATE, 
-        in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=active_spawns_sorted,
-        current_sort=sort_by
-    )
-
-@app.route('/add', methods=['POST'])
-def add_boss():
-    try:
-        boss_db = load_data()
-        boss_id = request.form.get('boss_id').strip()
-        ch = request.form.get('ch').strip()
-        time_input = request.form.get('time_input', '').strip()
-        
-        key = f"{boss_id}-{ch}"
-        boss_db["active_spawns"].pop(key, None)
-        boss_db["in_phase"].pop(key, None)
-        
-        base_min = 0
-        if time_input:
-            try:
-                is_neg = time_input.startswith("-")
-                clean = time_input.lstrip("-")
-                if "." in clean:
-                    h, m = map(int, clean.split("."))
-                    base_min = (h * 60) + m
-                else: base_min = int(clean)
-                if is_neg: base_min = -base_min
-            except: pass
-            
-        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-@app.route('/kill/<boss_id>/<ch>')
-def kill_boss(boss_id, ch):
-    try:
-        boss_db = load_data()
-        key = f"{boss_id}-{ch}"
-        boss_db["in_phase"].pop(key, None)
-        
-        time_input = request.args.get('time_input', '').strip()
-        base_min = 0
-        if time_input:
-            try:
-                is_neg = time_input.startswith("-")
-                clean = time_input.lstrip("-")
-                if "." in clean:
-                    h, m = map(int, clean.split("."))
-                    base_min = (h * 60) + m
-                else: base_min = int(clean)
-                if is_neg: base_min = -base_min
-            except: pass
-            
-        spawn_time = get_bkk_now() + timedelta(minutes=base_min)
-        boss_db["active_spawns"][key] = spawn_time.strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-@app.route('/delete/<boss_id>/<ch>')
-def delete_boss(boss_id, ch):
-    try:
-        boss_db = load_data()
-        key = f"{boss_id}-{ch}"
-        boss_db["active_spawns"].pop(key, None)
-        boss_db["in_phase"].pop(key, None)
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
