@@ -42,21 +42,14 @@ def load_data():
         print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
 
-# ฟังก์ชันเซฟข้อมูลไปที่ฐานข้อมูลออนไลน์
 def save_data(data):
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         payload = json.dumps(data)
-        
         response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
-        if response.status_code == 200:
-            print("✅ บันทึกข้อมูลลง Upstash สำเร็จ!")
-        else:
-            print(f"❌ เซฟไม่สำเร็จ Code: {response.status_code}")
     except Exception as e:
         print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
-# ฟังก์ชันอัปเดตสถานะบอส
 def update_boss_statuses():
     boss_db = load_data()
     now = get_bkk_now()
@@ -66,7 +59,6 @@ def update_boss_statuses():
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
             target_time = BKK_TZ.localize(naive_time)
-            
             if now >= target_time:
                 boss_db["in_phase"][key] = t_str
                 boss_db["active_spawns"].pop(key, None)
@@ -77,7 +69,6 @@ def update_boss_statuses():
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
             spawn_time = BKK_TZ.localize(naive_time)
-            
             if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
                 has_change = True
@@ -87,7 +78,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - ปรับแถบตัวกรองให้เป็น ปุ่มทั้งหมด + ช่องกรอกตัวเลขเอง
+# HTML UI - อัปเกรดแผงควบคุมระบบกรอง + การ์ดแดง
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -123,16 +114,18 @@ HTML_TEMPLATE = """
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         
-        /* 🛠️ สไตล์สำหรับแผงกรองเลเวลแบบกำหนดเอง */
-        .filter-container { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #3a3a3a; }
-        .btn-filter-all { font-size: 14px !important; height: 38px !important; font-weight: bold !important; }
-        .input-filter-level { font-size: 14px !important; height: 38px !important; max-width: 160px; text-align: center; }
+        /* 🛠️ สไตล์สำหรับระบบกรองและรายการการ์ดแดง */
+        .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
+        .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
+        .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
+        .red-badge-delete:hover { color: #ffcccc; }
+        .active-filter-btn { background-color: #0dcaf0 !important; color: #000 !important; border-color: #0dcaf0 !important; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         
-        <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
             <div class="d-flex gap-1 align-items-center">
                 <span class="text-muted" style="font-size: 13px;">เรียง:</span>
@@ -143,13 +136,28 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <div class="filter-container d-flex align-items-center justify-content-between gap-2 mb-3">
-            <div class="d-flex align-items-center gap-1 flex-grow-1">
-                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 กรองเลเวล:</span>
-                <input type="number" id="levelFilterInput" class="form-control form-control-sm input-filter-level bg-dark text-warning border-info fw-bold" placeholder="ระบุเลเวลขั้นต่ำ..." oninput="handleLevelInput(this.value)">
-                <span class="text-muted fw-bold style="font-size: 14px;">+</span>
+        <div class="panel-box">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-all" onclick="setMode('all')">👁️ ทั้งหมด</button>
+                <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-under100" onclick="setMode('under100')">📉 เลเวล ≤ 100</button>
+                <button class="btn btn-outline-danger btn-custom-sm flex-grow-1" id="btn-filter-redcard" onclick="setMode('redcard')">🔴 เฉพาะการ์ดแดง</button>
             </div>
-            <button class="btn btn-outline-light btn-filter-all btn-custom-sm" id="btnFilterAll" onclick="clearLevelFilter()">👁️ แสดงทั้งหมด</button>
+            
+            <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary">
+                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 ขั้นต่ำ:</span>
+                <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="ระบุเลเวลขั้นต่ำ..." oninput="handleMinLevelInput(this.value)">
+                <span class="text-muted fw-bold" style="font-size: 14px;">+</span>
+            </div>
+        </div>
+
+        <div class="panel-box">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="text-danger fw-bold" style="font-size: 14px; white-space: nowrap;">📌 เพิ่มกลุ่มการ์ดแดง:</span>
+                <input type="number" id="redCardInput" class="form-control form-control-sm bg-dark text-white border-danger text-center" placeholder="เลเวล เช่น 120" style="max-width: 120px;">
+                <button onclick="addRedCard()" class="btn btn-danger btn-custom-sm">➕ เพิ่ม</button>
+            </div>
+            <div id="redCardListContainer" class="d-flex flex-wrap pt-1">
+                </div>
         </div>
         
         <div class="boss-card p-2 mb-3">
@@ -168,11 +176,9 @@ HTML_TEMPLATE = """
                 <div class="col-boss-info">
                     <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
                 </div>
-                
                 <div class="col-boss-center">
                     <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
                 </div>
-                
                 <div class="col-boss-action">
                     <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -181,7 +187,7 @@ HTML_TEMPLATE = """
             {% else %}
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสเลเวลถึงที่กำหนดไว้...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
 
         <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
@@ -191,11 +197,9 @@ HTML_TEMPLATE = """
                 <div class="col-boss-info">
                     <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
                 </div>
-                
                 <div class="col-boss-center">
                     <span class="text-warning time-text">{{ item.t_str[11:16] }}</span>
                 </div>
-                
                 <div class="col-boss-action">
                     <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -204,7 +208,7 @@ HTML_TEMPLATE = """
             {% else %}
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสเลเวลถึงที่กำหนดไว้...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
 
     </div>
@@ -233,6 +237,10 @@ HTML_TEMPLATE = """
         const killModalElement = document.getElementById('killModal');
         const killModal = new bootstrap.Modal(killModalElement);
         
+        let currentMode = "all"; // โหมดปัจจุบัน: all, under100, redcard
+        let minLevelFilter = 0;   // เลเวลขั้นต่ำ (+)
+        let redCards = [];       // รายการเลเวลการ์ดแดง
+
         function getCookie(name) {
             let value = "; " + document.cookie;
             let parts = value.split("; " + name + "=");
@@ -240,39 +248,100 @@ HTML_TEMPLATE = """
             return null;
         }
 
-        // ฟังก์ชันรับค่าเมื่อมีการพิมพ์เลเวล
-        function handleLevelInput(val) {
-            const cleanVal = val.trim();
-            document.cookie = "boss_level_filter_val=" + encodeURIComponent(cleanVal) + "; path=/; max-age=31536000";
-            applyFilter(cleanVal);
-        }
-
-        // ฟังก์ชันเมื่อกดล้างตัวกรอง (เลือกทั้งหมด)
-        function clearLevelFilter() {
-            document.getElementById('levelFilterInput').value = "";
-            document.cookie = "boss_level_filter_val=; path=/; max-age=31536000";
-            applyFilter("");
-        }
-
-        // ฟังก์ชันคำนวณซ่อน/แสดง บอสตามเลเวลที่ระบุ
-        function applyFilter(targetLevelStr) {
-            const btnAll = document.getElementById('btnFilterAll');
-            const targetLevel = parseInt(targetLevelStr) || 0;
-
-            if (targetLevel > 0) {
-                btnAll.classList.remove('btn-outline-light');
-                btnAll.classList.add('btn-info', 'text-dark');
+        // --- 🔴 จัดการระบบการ์ดแดง ---
+        function loadRedCards() {
+            const saved = getCookie('tosm_red_cards');
+            if (saved) {
+                try { redCards = JSON.parse(decodeURIComponent(saved)); } catch(e) { redCards = []; }
             } else {
-                btnAll.classList.remove('btn-info', 'text-dark');
-                btnAll.classList.add('btn-outline-light');
+                redCards = [];
             }
+            renderRedCards();
+        }
 
+        function saveRedCards() {
+            document.cookie = "tosm_red_cards=" + encodeURIComponent(JSON.stringify(redCards)) + "; path=/; max-age=31536000";
+        }
+
+        function addRedCard() {
+            const input = document.getElementById('redCardInput');
+            const lvl = parseInt(input.value);
+            if (!lvl || lvl <= 0) return alert('กรุณากรอกเลเวลบอสที่ถูกต้องครับ');
+            if (!redCards.includes(lvl)) {
+                redCards.push(lvl);
+                redCards.sort((a, b) => b - a); // เรียงจากมากไปน้อย
+                saveRedCards();
+                renderRedCards();
+                applyAllFilters();
+            }
+            input.value = "";
+        }
+
+        function deleteRedCard(lvl) {
+            redCards = redCards.filter(item => item !== lvl);
+            saveRedCards();
+            renderRedCards();
+            applyAllFilters();
+        }
+
+        function renderRedCards() {
+            const container = document.getElementById('redCardListContainer');
+            container.innerHTML = "";
+            if (redCards.length === 0) {
+                container.innerHTML = '<span class="text-muted" style="font-size: 13px;">ไม่มีเลเวลการ์ดแดงในรายการ...</span>';
+                return;
+            }
+            redCards.forEach(lvl => {
+                const badge = document.createElement('span');
+                badge.className = 'red-badge-item';
+                badge.innerHTML = `Lv.${lvl} <button class="red-badge-delete" onclick="deleteRedCard(${lvl})">×</button>`;
+                container.appendChild(badge);
+            });
+        }
+
+        // --- 🔍 ระบบคัดกรอง Logic ผสม ---
+        function setMode(mode) {
+            currentMode = mode;
+            document.cookie = "tosm_filter_mode=" + mode + "; path=/; max-age=31536000";
+            
+            // อัปเดตสีปุ่มควบคุม
+            document.getElementById('btn-filter-all').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'all' ? 'btn-info text-dark' : 'btn-outline-light');
+            document.getElementById('btn-filter-under100').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'under100' ? 'btn-info text-dark' : 'btn-outline-light');
+            document.getElementById('btn-filter-redcard').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'redcard' ? 'btn-danger' : 'btn-outline-danger');
+            
+            applyAllFilters();
+        }
+
+        function handleMinLevelInput(val) {
+            minLevelFilter = parseInt(val) || 0;
+            document.cookie = "tosm_min_level_val=" + minLevelFilter + "; path=/; max-age=31536000";
+            applyAllFilters();
+        }
+
+        function applyAllFilters() {
             const rows = document.querySelectorAll('.boss-item-row');
+            
             rows.forEach(row => {
-                const currentLvl = parseInt(row.getAttribute('data-boss-level')) || 0;
-                
-                // เงื่อนไข: ถ้าไม่ได้กรอกเลเวล หรือบอสเลเวลมากกว่า/เท่ากับ เลเวลที่ระบุ ให้แสดงตัว
-                if (!targetLevelStr || currentLvl >= targetLevel) {
+                const lvl = parseInt(row.getAttribute('data-boss-level')) || 0;
+                let passMode = false;
+
+                // 1. เช็คเงื่อนไขโหมดปุ่มหลัก
+                if (currentMode === 'all') {
+                    passMode = true;
+                } else if (currentMode === 'under100') {
+                    if (lvl <= 100) passMode = true;
+                } else if (currentMode === 'redcard') {
+                    if (redCards.includes(lvl)) passMode = true;
+                }
+
+                // 2. เช็คเงื่อนไขช่องกรอกเลเวลขั้นต่ำพ่วงด้วย (+)
+                let passMinLevel = true;
+                if (minLevelFilter > 0 && lvl < minLevelFilter) {
+                    passMinLevel = false;
+                }
+
+                // สรุปผลการซ่อน/แสดง
+                if (passMode && passMinLevel) {
                     row.classList.remove('d-none');
                     row.classList.add('d-flex');
                 } else {
@@ -306,11 +375,24 @@ HTML_TEMPLATE = """
             }
         }
 
-        // โหลดหน้าเว็บขึ้นมาใหม่ ให้ดึงค่าที่พิมพ์ค้างไว้กลับมาใช้
+        // รันครั้งแรกเมื่อโหลดหน้าเว็บ
         window.addEventListener('DOMContentLoaded', () => {
-            const savedFilterVal = decodeURIComponent(getCookie('boss_level_filter_val') || "");
-            document.getElementById('levelFilterInput').value = savedFilterVal;
-            applyFilter(savedFilterVal);
+            loadRedCards();
+            
+            const savedMode = getCookie('tosm_filter_mode') || 'all';
+            const savedMinLvl = parseInt(getCookie('tosm_min_level_val')) || 0;
+            
+            if(savedMinLvl > 0) {
+                document.getElementById('levelFilterInput').value = savedMinLvl;
+                minLevelFilter = savedMinLvl;
+            }
+            
+            setMode(savedMode);
+        });
+
+        // รองรับการกด Enter ในช่องเพิ่มการ์ดแดง
+        document.getElementById('redCardInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); addRedCard(); }
         });
 
         function killBoss(bossId, ch) {
@@ -325,10 +407,7 @@ HTML_TEMPLATE = """
         });
 
         function handleModalKeyDown(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                submitKill();
-            }
+            if (event.key === 'Enter') { event.preventDefault(); submitKill(); }
         }
 
         function changeSortOrder(val) {
