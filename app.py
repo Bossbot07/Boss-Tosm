@@ -1,10 +1,13 @@
-from flask import Flask, render_template_string, request, jsonify, make_response
+from flask import Flask, render_template_string, request, jsonify, make_response, redirect, url_for
 from datetime import datetime, timedelta
 import requests
 import pytz
 import json
 
 app = Flask(__name__)
+
+# 🔑 ตั้งค่ารหัสผ่านเข้าเว็บตรงนี้ครับ (เปลี่ยนตามใจชอบได้เลย)
+WEB_PASSWORD = "778"
 
 # Config ฐานข้อมูล Upstash ของคุณ
 REDIS_URL = "https://helping-egret-126070.upstash.io"
@@ -14,24 +17,19 @@ BKK_TZ = pytz.timezone('Asia/Bangkok')
 def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
-# ฟังก์ชันดึงข้อมูลจากฐานข้อมูลออนไลน์
 def load_data():
     default_data = {"active_spawns": {}, "in_phase": {}}
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
-        
         if response.status_code == 200:
             res_json = response.json()
             result = res_json.get("result")
-            
             if result:
                 if isinstance(result, str):
                     try: data = json.loads(result)
                     except: data = json.loads(result)
-                else:
-                    data = result
-                
+                else: data = result
                 return {
                     "active_spawns": data.get("active_spawns", {}),
                     "in_phase": data.get("in_phase", {})
@@ -78,7 +76,38 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# HTML UI - อัปเดตแก้คำว่า "เลเวล:" และระบบ UI ครบถ้วนทั้งหมด
+# 🔒 HTML หน้าล็อกอิน (กรณีผู้ใช้ยังไม่ได้ใส่รหัสผ่าน)
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOSM Boss Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
+        .login-box { max-width: 360px; margin: 100px auto px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="container px-3">
+    <div class="login-box text-center">
+        <h3 class="text-warning mb-4">⚔️ TOSM BOSS TRACKER</h3>
+        {% if error %}
+        <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
+        {% endif %}
+        <form method="POST" action="/login">
+            <div class="mb-3">
+                <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required autofocus>
+            </div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold">🔓 เข้าสู่ระบบ</button>
+        </form>
+    </div>
+</body>
+</html>
+"""
+
+# HTML UI หลัก (ตัวเดิมที่อัปเกรดเรียบร้อยแล้ว)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -113,7 +142,6 @@ HTML_TEMPLATE = """
         .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
-        
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
         .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
         .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
@@ -125,12 +153,12 @@ HTML_TEMPLATE = """
         
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
-            <div class="d-flex gap-1 align-items-center">
-                <span class="text-muted" style="font-size: 13px;">เรียง:</span>
+            <div class="d-flex gap-2 align-items-center">
                 <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
                 </select>
+                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important; height:auto !important;">🔒 ออก</a>
             </div>
         </div>
 
@@ -154,8 +182,7 @@ HTML_TEMPLATE = """
                 <input type="number" id="redCardInput" class="form-control form-control-sm bg-dark text-white border-danger text-center" placeholder="เลเวล เช่น 120" style="max-width: 120px;">
                 <button onclick="addRedCard()" class="btn btn-danger btn-custom-sm">➕ เพิ่ม</button>
             </div>
-            <div id="redCardListContainer" class="d-flex flex-wrap pt-1">
-                </div>
+            <div id="redCardListContainer" class="d-flex flex-wrap pt-1"></div>
         </div>
         
         <div class="boss-card p-2 mb-3">
@@ -171,12 +198,8 @@ HTML_TEMPLATE = """
         <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
             <div class="boss-card in-phase-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info">
-                    <span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
-                </div>
-                <div class="col-boss-center">
-                    <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
-                </div>
+                <div class="col-boss-info"><span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
+                <div class="col-boss-center"><span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span></div>
                 <div class="col-boss-action">
                     <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -192,12 +215,8 @@ HTML_TEMPLATE = """
         <div class="d-flex flex-column gap-1" id="upcoming-container">
             {% for item in active_spawns_sorted %}
             <div class="boss-card upcoming-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info">
-                    <span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span>
-                </div>
-                <div class="col-boss-center">
-                    <span class="text-warning time-text">{{ item.t_str[11:16] }}</span>
-                </div>
+                <div class="col-boss-info"><span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
+                <div class="col-boss-center"><span class="text-warning time-text">{{ item.t_str[11:16] }}</span></div>
                 <div class="col-boss-action">
                     <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -208,22 +227,20 @@ HTML_TEMPLATE = """
             {% endfor %}
             <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
-
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
-            <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important; box-shadow: 0px 4px 20px rgba(0,0,0,0.8);">
+            <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important;">
                 <div class="modal-body p-3">
-                    <input type="hidden" id="modal-boss-id">
-                    <input type="hidden" id="modal-ch">
+                    <input type="hidden" id="modal-boss-id"><input type="hidden" id="modal-ch">
                     <div class="mb-3">
                         <label class="form-label mb-2" style="font-size: 14px; font-weight: bold;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
                         <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 15px; height: 42px;">
                     </div>
                     <div class="d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-secondary btn-custom-sm" style="height: 36px;" data-bs-dismiss="modal">ยกเลิก</button>
-                        <button type="button" onclick="submitKill()" class="btn btn-success btn-custom-sm" style="height: 36px;">ยืนยัน</button>
+                        <button type="button" class="btn btn-secondary btn-custom-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" onclick="submitKill()" class="btn btn-success btn-custom-sm">ยืนยัน</button>
                     </div>
                 </div>
             </div>
@@ -234,10 +251,7 @@ HTML_TEMPLATE = """
     <script>
         const killModalElement = document.getElementById('killModal');
         const killModal = new bootstrap.Modal(killModalElement);
-        
-        let currentMode = "all"; 
-        let minLevelFilter = 0;   
-        let redCards = [];       
+        let currentMode = "all", minLevelFilter = 0, redCards = [];
 
         function getCookie(name) {
             let value = "; " + document.cookie;
@@ -248,173 +262,104 @@ HTML_TEMPLATE = """
 
         function loadRedCards() {
             const saved = getCookie('tosm_red_cards');
-            if (saved) {
-                try { redCards = JSON.parse(decodeURIComponent(saved)); } catch(e) { redCards = []; }
-            } else {
-                redCards = [];
-            }
+            if (saved) { try { redCards = JSON.parse(decodeURIComponent(saved)); } catch(e) { redCards = []; } }
             renderRedCards();
         }
 
-        function saveRedCards() {
-            document.cookie = "tosm_red_cards=" + encodeURIComponent(JSON.stringify(redCards)) + "; path=/; max-age=31536000";
-        }
+        function saveRedCards() { document.cookie = "tosm_red_cards=" + encodeURIComponent(JSON.stringify(redCards)) + "; path=/; max-age=31536000"; }
 
         function addRedCard() {
             const input = document.getElementById('redCardInput');
             const lvl = parseInt(input.value);
             if (!lvl || lvl <= 0) return alert('กรุณากรอกเลเวลบอสที่ถูกต้องครับ');
             if (!redCards.includes(lvl)) {
-                redCards.push(lvl);
-                redCards.sort((a, b) => b - a);
-                saveRedCards();
-                renderRedCards();
-                applyAllFilters();
+                redCards.push(lvl); redCards.sort((a, b) => b - a);
+                saveRedCards(); renderRedCards(); applyAllFilters();
             }
             input.value = "";
         }
 
         function deleteRedCard(lvl) {
             redCards = redCards.filter(item => item !== lvl);
-            saveRedCards();
-            renderRedCards();
-            applyAllFilters();
+            saveRedCards(); renderRedCards(); applyAllFilters();
         }
 
         function renderRedCards() {
             const container = document.getElementById('redCardListContainer');
             container.innerHTML = "";
-            if (redCards.length === 0) {
-                container.innerHTML = '<span class="text-muted" style="font-size: 13px;">ไม่มีเลเวลการ์ดแดงในรายการ...</span>';
-                return;
-            }
+            if (redCards.length === 0) { container.innerHTML = '<span class="text-muted" style="font-size: 13px;">ไม่มีเลเวลการ์ดแดงในรายการ...</span>'; return; }
             redCards.forEach(lvl => {
-                const badge = document.createElement('span');
-                badge.className = 'red-badge-item';
+                const badge = document.createElement('span'); badge.className = 'red-badge-item';
                 badge.innerHTML = `Lv.${lvl} <button class="red-badge-delete" onclick="deleteRedCard(${lvl})">×</button>`;
                 container.appendChild(badge);
             });
         }
 
         function setMode(mode) {
-            currentMode = mode;
-            document.cookie = "tosm_filter_mode=" + mode + "; path=/; max-age=31536000";
-            
+            currentMode = mode; document.cookie = "tosm_filter_mode=" + mode + "; path=/; max-age=31536000";
             document.getElementById('btn-filter-all').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'all' ? 'btn-info text-dark' : 'btn-outline-light');
             document.getElementById('btn-filter-under100').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'under100' ? 'btn-info text-dark' : 'btn-outline-light');
             document.getElementById('btn-filter-redcard').className = 'btn btn-custom-sm flex-grow-1 ' + (mode === 'redcard' ? 'btn-danger' : 'btn-outline-danger');
-            
             applyAllFilters();
         }
 
         function handleMinLevelInput(val) {
-            minLevelFilter = parseInt(val) || 0;
-            document.cookie = "tosm_min_level_val=" + minLevelFilter + "; path=/; max-age=31536000";
+            minLevelFilter = parseInt(val) || 0; document.cookie = "tosm_min_level_val=" + minLevelFilter + "; path=/; max-age=31536000";
             applyAllFilters();
         }
 
         function applyAllFilters() {
             const rows = document.querySelectorAll('.boss-item-row');
-            
             rows.forEach(row => {
                 const lvl = parseInt(row.getAttribute('data-boss-level')) || 0;
                 let passMode = false;
-
-                if (currentMode === 'all') {
-                    passMode = true;
-                } else if (currentMode === 'under100') {
-                    if (lvl <= 100) passMode = true;
-                } else if (currentMode === 'redcard') {
-                    if (redCards.includes(lvl)) passMode = true;
-                }
+                if (currentMode === 'all') passMode = true;
+                else if (currentMode === 'under100') { if (lvl <= 100) passMode = true; }
+                else if (currentMode === 'redcard') { if (redCards.includes(lvl)) passMode = true; }
 
                 let passMinLevel = true;
-                if (minLevelFilter > 0 && lvl < minLevelFilter) {
-                    passMinLevel = false;
-                }
+                if (minLevelFilter > 0 && lvl < minLevelFilter) passMinLevel = false;
 
-                if (passMode && passMinLevel) {
-                    row.classList.remove('d-none');
-                    row.classList.add('d-flex');
-                } else {
-                    row.classList.remove('d-flex');
-                    row.classList.add('d-none');
-                }
+                if (passMode && passMinLevel) { row.classList.remove('d-none'); row.classList.add('d-flex'); }
+                else { row.classList.remove('d-flex'); row.classList.add('d-none'); }
             });
-
-            checkContainerEmpty('in-phase-container');
-            checkContainerEmpty('upcoming-container');
+            checkContainerEmpty('in-phase-container'); checkContainerEmpty('upcoming-container');
         }
 
         function checkContainerEmpty(containerId) {
-            const container = document.getElementById(containerId);
-            if(!container) return;
+            const container = document.getElementById(containerId); if(!container) return;
             const visibleRows = container.querySelectorAll('.boss-item-row:not(.d-none)');
             const emptyNotice = container.querySelector('.empty-text-notice');
             const filterNotice = container.querySelector('.filter-empty-notice');
-
             if(visibleRows.length === 0) {
                 if(emptyNotice && container.querySelectorAll('.boss-item-row').length === 0) {
-                    emptyNotice.classList.remove('d-none');
-                    if(filterNotice) filterNotice.classList.add('d-none');
+                    emptyNotice.classList.remove('d-none'); if(filterNotice) filterNotice.classList.add('d-none');
                 } else {
-                    if(emptyNotice) emptyNotice.classList.add('d-none');
-                    if(filterNotice) filterNotice.classList.remove('d-none');
+                    if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.remove('d-none');
                 }
-            } else {
-                if(emptyNotice) emptyNotice.classList.add('d-none');
-                if(filterNotice) filterNotice.classList.add('d-none');
-            }
+            } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
             loadRedCards();
-            
             const savedMode = getCookie('tosm_filter_mode') || 'all';
             const savedMinLvl = parseInt(getCookie('tosm_min_level_val')) || 0;
-            
-            if(savedMinLvl > 0) {
-                document.getElementById('levelFilterInput').value = savedMinLvl;
-                minLevelFilter = savedMinLvl;
-            }
-            
+            if(savedMinLvl > 0) { document.getElementById('levelFilterInput').value = savedMinLvl; minLevelFilter = savedMinLvl; }
             setMode(savedMode);
         });
 
-        document.getElementById('redCardInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { e.preventDefault(); addRedCard(); }
-        });
-
-        function killBoss(bossId, ch) {
-            document.getElementById('modal-boss-id').value = bossId;
-            document.getElementById('modal-ch').value = ch;
-            document.getElementById('modal-time-input').value = "";
-            killModal.show();
-        }
-
-        killModalElement.addEventListener('shown.bs.modal', function () {
-            document.getElementById('modal-time-input').focus();
-        });
-
-        function handleModalKeyDown(event) {
-            if (event.key === 'Enter') { event.preventDefault(); submitKill(); }
-        }
-
-        function changeSortOrder(val) {
-            document.cookie = "boss_sort_order=" + val + "; path=/; max-age=31536000";
-            window.location.reload();
-        }
-
-        function runApi(url) {
-            fetch(url).then(() => { window.location.reload(); }).catch(() => { window.location.reload(); });
-        }
+        document.getElementById('redCardInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addRedCard(); } });
+        function killBoss(bossId, ch) { document.getElementById('modal-boss-id').value = bossId; document.getElementById('modal-ch').value = ch; document.getElementById('modal-time-input').value = ""; killModal.show(); }
+        killModalElement.addEventListener('shown.bs.modal', function () { document.getElementById('modal-time-input').focus(); });
+        function handleModalKeyDown(event) { if (event.key === 'Enter') { event.preventDefault(); submitKill(); } }
+        function changeSortOrder(val) { document.cookie = "boss_sort_order=" + val + "; path=/; max-age=31536000"; window.location.reload(); }
+        function runApi(url) { fetch(url).then(() => { window.location.reload(); }).catch(() => { window.location.reload(); }); }
 
         function submitAddForm(event) {
             event.preventDefault();
             const b_id = document.getElementById('boss_id').value;
             const ch_id = document.getElementById('ch').value;
             const t_in = document.getElementById('time_input').value;
-
             fetch('/add', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -426,55 +371,65 @@ HTML_TEMPLATE = """
             const bossId = document.getElementById('modal-boss-id').value;
             const ch = document.getElementById('modal-ch').value;
             const timeInput = document.getElementById('modal-time-input').value;
-            killModal.hide();
-            runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
+            killModal.hide(); runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
         function updateCountdowns() {
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
             let needReload = false;
-
             elements.forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
-
-                if (diff <= 0) {
-                    el.innerHTML = "💥 เกิดแล้ว!";
-                    el.style.color = "#ff4757";
-                    needReload = true;
-                } else {
+                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; needReload = true; }
+                else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
                     const displayMinutes = String(minutes).padStart(2, '0');
                     const displaySeconds = String(seconds).padStart(2, '0');
-
-                    if (hours > 0) {
-                        el.innerHTML = `⏱️ ${hours}:${displayMinutes}:${displaySeconds}`;
-                    } else {
-                        el.innerHTML = `⏱️ ${displayMinutes}:${displaySeconds}`;
-                    }
+                    if (hours > 0) el.innerHTML = `⏱️ ${hours}:${displayMinutes}:${displaySeconds}`;
+                    else el.innerHTML = `⏱️ ${displayMinutes}:${displaySeconds}`;
                 }
             });
-
-            if (needReload) {
-                setTimeout(() => { window.location.reload(); }, 1000);
-            }
+            if (needReload) { setTimeout(() => { window.location.reload(); }, 1000); }
         }
 
-        setInterval(updateCountdowns, 1000);
-        updateCountdowns();
+        setInterval(updateCountdowns, 1000); updateCountdowns();
         setInterval(() => { window.location.reload(); }, 45000);
     </script>
 </body>
 </html>
 """
 
+# 🛠️ ตรวจสอบสถานะการล็อกอินผ่าน Cookie ทุกครั้งที่เข้าเว็บ
+def is_authenticated():
+    return request.cookies.get("tosm_auth") == WEB_PASSWORD
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        pwd = request.form.get('pwd', '')
+        if pwd == WEB_PASSWORD:
+            response = make_response(redirect(url_for('index')))
+            # เซ็ต Cookie ให้อยู่ได้ 30 วัน (ไม่ต้องล็อกอินบ่อย)
+            response.set_cookie('tosm_auth', WEB_PASSWORD, max_age=30*24*60*60, path='/')
+            return response
+        return render_template_string(LOGIN_TEMPLATE, error=True)
+    return render_template_string(LOGIN_TEMPLATE, error=False)
+
+@app.route('/logout')
+def logout():
+    response = make_response(redirect(url_for('login')))
+    response.delete_cookie('tosm_auth', path='/')
+    return response
+
 @app.route('/')
 def index():
+    if not is_authenticated():
+        return redirect(url_for('login'))
+        
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
@@ -496,18 +451,12 @@ def index():
         except: boss_level = -1
             
         in_phase_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "minutes_passed": minutes_passed
+            "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
+            "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed
         })
     
-    if sort_by == 'level':
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+    if sort_by == 'level': in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else: in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
     
     upcoming_list = []
     for key, t_str in boss_db["active_spawns"].items():
@@ -517,36 +466,28 @@ def index():
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
             iso_time = spawn_time.isoformat()
         except:
-            spawn_time = now
-            iso_time = now.isoformat()
+            spawn_time = now; iso_time = now.isoformat()
         
         try: boss_level = int(boss_id)
         except: boss_level = -1
             
         upcoming_list.append({
-            "boss_id": boss_id,
-            "boss_level": boss_level,
-            "ch": ch,
-            "t_str": t_str,
-            "spawn_time_obj": spawn_time,
-            "iso_time": iso_time
+            "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
+            "spawn_time_obj": spawn_time, "iso_time": iso_time
         })
         
-    if sort_by == 'level':
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else:
-        active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
+    if sort_by == 'level': active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+    else: active_spawns_sorted = sorted(upcoming_list, key=lambda x: x["spawn_time_obj"])
     
-    # แก้ไขส่งค่า current_sort ไปที่ HTML_TEMPLATE ให้ปุ่มเลือกสลับการเรียงลำดับทำงานได้อย่างถูกต้องครบถ้วน
     return render_template_string(
-        HTML_TEMPLATE, 
-        in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=active_spawns_sorted,
-        current_sort=sort_by
+        HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
+        active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
     )
 
+# 🔒 บล็อก API หลังบ้านด้วย เผื่อมีคนยิงตรงผ่าน URL โดยไม่ล็อกอิน
 @app.route('/add', methods=['POST'])
 def add_boss():
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
     try:
         boss_db = load_data()
         boss_id = request.form.get('boss_id').strip()
@@ -577,6 +518,7 @@ def add_boss():
 
 @app.route('/kill/<boss_id>/<ch>')
 def kill_boss(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
     try:
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
@@ -603,6 +545,7 @@ def kill_boss(boss_id, ch):
 
 @app.route('/delete/<boss_id>/<ch>')
 def delete_boss(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
     try:
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
