@@ -6,7 +6,7 @@ import json
 
 app = Flask(__name__)
 
-# 🔑 ตั้งค่ารหัสผ่านเข้าเว็บตรงนี้ครับ (เปลี่ยนตามใจชอบได้เลย)
+# 🔑 ตั้งค่ารหัสผ่านเข้าเว็บตรงนี้ครับ
 WEB_PASSWORD = "778"
 
 # Config ฐานข้อมูล Upstash ของคุณ
@@ -18,7 +18,7 @@ def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
 def load_data():
-    default_data = {"active_spawns": {}, "in_phase": {}}
+    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}}
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
@@ -32,7 +32,8 @@ def load_data():
                 else: data = result
                 return {
                     "active_spawns": data.get("active_spawns", {}),
-                    "in_phase": data.get("in_phase", {})
+                    "in_phase": data.get("in_phase", {}),
+                    "dead_status": data.get("dead_status", {})  # ดึงสถานะ Dead เพิ่มเข้ามา
                 }
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
@@ -69,6 +70,7 @@ def update_boss_statuses():
             spawn_time = BKK_TZ.localize(naive_time)
             if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
+                boss_db["dead_status"].pop(key, None)  # ล้างสถานะ Dead เมื่อบอสหมดเวลาเฟส
                 has_change = True
         except: continue
 
@@ -76,7 +78,7 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# 🔒 HTML หน้าล็อกอิน (กรณีผู้ใช้ยังไม่ได้ใส่รหัสผ่าน)
+# 🔒 HTML หน้าล็อกอิน
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -87,7 +89,7 @@ LOGIN_TEMPLATE = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
-        .login-box { max-width: 360px; margin: 100px auto px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
+        .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body class="container px-3">
@@ -107,7 +109,7 @@ LOGIN_TEMPLATE = """
 </html>
 """
 
-# HTML UI หลัก (ตัวเดิมที่อัปเกรดเรียบร้อยแล้ว)
+# HTML UI หลัก (เพิ่มการแสดงผลสถานะบอสตายแยกปุ่ม Dead)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -124,9 +126,12 @@ HTML_TEMPLATE = """
         .in-phase-bg { border-left: 6px solid #ff4757 !important; }
         .upcoming-bg { border-left: 6px solid #2ed573 !important; }
         
+        /* สไตล์สำหรับบอสที่กด Dead แล้ว (จะแสดงเป็นสีเทาโปร่งแสง) */
+        .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.55 !important; border-left: 6px solid #6c757d !important; }
+        
         .col-boss-info { width: 38% !important; min-width: 120px; flex-shrink: 0; }
-        .col-boss-center { width: 30% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
-        .col-boss-action { width: 32% !important; display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-shrink: 0; }
+        .col-boss-center { width: 28% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
+        .col-boss-action { width: 34% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
         
         .boss-title { font-size: 16px !important; font-weight: bold; }
         .time-text { font-size: 16px !important; font-weight: bold; }
@@ -134,12 +139,12 @@ HTML_TEMPLATE = """
         
         .form-control-sm, .form-select-sm { font-size: 14px !important; padding: 6px 10px !important; height: 38px !important; }
         
-        .btn-custom-sm { font-size: 14px !important; padding: 6px 14px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
-        .btn-delete { padding: 6px 12px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
+        .btn-custom-sm { font-size: 14px !important; padding: 6px 10px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
+        .btn-delete { padding: 6px 10px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
         
         h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
-        .badge-phase { font-size: 13px !important; padding: 6px 10px !important; font-weight: bold; border-radius: 6px !important; }
+        .badge-phase { font-size: 13px !important; padding: 5px 8px !important; font-weight: bold; border-radius: 6px !important; }
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
@@ -197,11 +202,28 @@ HTML_TEMPLATE = """
         <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
         <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
-            <div class="boss-card in-phase-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info"><span class="text-danger boss-title">🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
-                <div class="col-boss-center"><span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span></div>
+            <div class="boss-card {% if item.is_dead %}boss-dead-bg{% else %}in-phase-bg{% endif %} d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
+                <div class="col-boss-info">
+                    <span class="{% if item.is_dead %}text-secondary{% else %}text-danger{% endif %} boss-title">
+                        {% if item.is_dead %}💀 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% else %}🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% endif %}
+                    </span>
+                </div>
+                <div class="col-boss-center">
+                    {% if item.is_dead %}
+                    <span class="badge bg-secondary badge-phase">[💀 ตายแล้ว]</span>
+                    {% else %}
+                    <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
+                    {% endif %}
+                </div>
                 <div class="col-boss-action">
                     <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
+                    
+                    {% if item.is_dead %}
+                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-warning btn-custom-sm" title="ยกเลิกสถานะตาย">🔄</button>
+                    {% else %}
+                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;" title="ทำเครื่องหมายว่าบอสตายแล้ว">💀 Dead</button>
+                    {% endif %}
+                    
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
                 </div>
             </div>
@@ -403,7 +425,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# 🛠️ ตรวจสอบสถานะการล็อกอินผ่าน Cookie ทุกครั้งที่เข้าเว็บ
 def is_authenticated():
     return request.cookies.get("tosm_auth") == WEB_PASSWORD
 
@@ -413,7 +434,6 @@ def login():
         pwd = request.form.get('pwd', '')
         if pwd == WEB_PASSWORD:
             response = make_response(redirect(url_for('index')))
-            # เซ็ต Cookie ให้อยู่ได้ 30 วัน (ไม่ต้องล็อกอินบ่อย)
             response.set_cookie('tosm_auth', WEB_PASSWORD, max_age=30*24*60*60, path='/')
             return response
         return render_template_string(LOGIN_TEMPLATE, error=True)
@@ -444,19 +464,25 @@ def index():
             minutes_passed = int(diff.total_seconds() // 60)
             if minutes_passed < 0: minutes_passed = 0
         except:
-            spawn_time = now
-            minutes_passed = 0
+            spawn_time = now; minutes_passed = 0
             
         try: boss_level = int(boss_id)
         except: boss_level = -1
             
+        # ตรวจสอบว่าบอสตัวนี้มีสถานะ Dead อยู่ในฐานข้อมูลฐานข้อมูลหรือไม่
+        is_dead = boss_db.get("dead_status", {}).get(key, False)
+            
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
-            "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed
+            "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed,
+            "is_dead": is_dead
         })
     
-    if sort_by == 'level': in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
-    else: in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+    # ดัดแปลงการเรียงลำดับ: บอสที่ 'ตายแล้ว' (is_dead=True) จะโดนดีดไปอยู่ด้านล่างสุดของรายการเสมอ
+    if sort_by == 'level':
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (x["is_dead"], -x["boss_level"], x["spawn_time_obj"]))
+    else:
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (x["is_dead"], x["spawn_time_obj"]))
     
     upcoming_list = []
     for key, t_str in boss_db["active_spawns"].items():
@@ -484,7 +510,26 @@ def index():
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
     )
 
-# 🔒 บล็อก API หลังบ้านด้วย เผื่อมีคนยิงตรงผ่าน URL โดยไม่ล็อกอิน
+# 💀 API สลับสถานะบอสตาย (Toggle Dead Status)
+@app.route('/toggle_dead/<boss_id>/<ch>')
+def toggle_dead(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        
+        # สลับสถานะ True/False บันทึกลง Dict ของ dead_status
+        if key in boss_db.get("dead_status", {}):
+            boss_db["dead_status"].pop(key, None)
+        else:
+            if "dead_status" not in boss_db:
+                boss_db["dead_status"] = {}
+            boss_db["dead_status"][key] = True
+            
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
+
 @app.route('/add', methods=['POST'])
 def add_boss():
     if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
@@ -497,6 +542,7 @@ def add_boss():
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
+        boss_db["dead_status"].pop(key, None)  # ล้างสถานะเมื่อมีการตั้งเวลาใหม่
         
         base_min = 0
         if time_input:
@@ -523,6 +569,7 @@ def kill_boss(boss_id, ch):
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
+        boss_db["dead_status"].pop(key, None)  # ล้างสถานะเมื่อกดใส่รอบถัดไป
         
         time_input = request.args.get('time_input', '').strip()
         base_min = 0
@@ -551,6 +598,7 @@ def delete_boss(boss_id, ch):
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
+        boss_db["dead_status"].pop(key, None)
         save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
