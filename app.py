@@ -167,10 +167,23 @@ HTML_TEMPLATE = """
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         
+        <!-- ส่วนหัวเว็บ (ปรับปรุงใหม่ตามรูปภาพ image_06539e.png เอารายชื่อปาร์ตี้มาไว้ข้างบนแบบเรียบง่าย) -->
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
-            <div class="d-flex gap-2 align-items-center">
-                <span class="text-info fw-bold d-none d-sm-inline" style="font-size:13px;">👤 {{ current_user }}</span>
+            <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
+                <div style="font-size:13px;" class="text-end me-1">
+                    <span class="text-info fw-bold">👤 {{ current_user }}</span>
+                    <span class="text-muted mx-1">|</span>
+                    <span class="text-success fw-bold">🟢 ตี้ที่เปิดอยู่: 
+                        {% for user in online_users %}
+                            {% if user != current_user %}
+                                <span class="badge bg-dark border border-success text-success ms-1" style="font-size: 11px; padding: 3px 6px;">{{ user }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted" style="font-size: 11px;">ไม่มีคนอื่น</span>
+                        {% endfor %}
+                    </span>
+                </div>
                 <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
@@ -179,6 +192,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
+        <!-- 🔍 แผงกรองข้อมูลหลัก -->
         <div class="panel-box">
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-all" onclick="setMode('all')">👁️ ทั้งหมด</button>
@@ -192,6 +206,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
+        <!-- 🔴 แผงจัดการรายการ "การ์ดแดง" -->
         <div class="panel-box">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <span class="text-danger fw-bold" style="font-size: 14px; white-space: nowrap;">📌 เพิ่มกลุ่มการ์ดแดง:</span>
@@ -201,6 +216,7 @@ HTML_TEMPLATE = """
             <div id="redCardListContainer" class="d-flex flex-wrap pt-1"></div>
         </div>
         
+        <!-- ฟอร์มบันทึกบอส -->
         <div class="boss-card p-2 mb-3">
             <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
                 <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
@@ -210,6 +226,7 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
+        <!-- บอสเข้าเฟส -->
         <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
         <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
@@ -242,6 +259,7 @@ HTML_TEMPLATE = """
             <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
 
+        <!-- บอสรอเกิด -->
         <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
         <div class="d-flex flex-column gap-1" id="upcoming-container">
             {% for item in active_spawns_sorted %}
@@ -261,6 +279,7 @@ HTML_TEMPLATE = """
 
     </div>
 
+    <!-- Modal จัดการบอสตาย -->
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
             <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important;">
@@ -491,6 +510,9 @@ def index():
     sort_by = request.cookies.get('boss_sort_order', 'time')
     current_user = get_current_user()
     
+    # ดึงรายชื่อผู้ใช้ที่กำลังเปิดเว็บอยู่
+    online_users = list(boss_db.get("online_users", {}).keys())
+    
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
         if '-' not in str(key): continue
@@ -548,7 +570,7 @@ def index():
     return render_template_string(
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by,
-        current_user=current_user
+        current_user=current_user, online_users=online_users
     )
 
 @app.route('/toggle_dead/<boss_id>/<ch>')
