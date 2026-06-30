@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, jsonify, make_response, redirect, url_for
+﻿from flask import Flask, render_template_string, request, jsonify, make_response, redirect, url_for
 from datetime import datetime, timedelta
 import requests
 import pytz
@@ -18,7 +18,7 @@ def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
 def load_data():
-    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}}
+    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}, "online_users": {}}
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
@@ -33,7 +33,8 @@ def load_data():
                 return {
                     "active_spawns": data.get("active_spawns", {}),
                     "in_phase": data.get("in_phase", {}),
-                    "dead_status": data.get("dead_status", {})  # ดึงสถานะ Dead เพิ่มเข้ามา
+                    "dead_status": data.get("dead_status", {}),
+                    "online_users": data.get("online_users", {})
                 }
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
@@ -54,6 +55,7 @@ def update_boss_statuses():
     now = get_bkk_now()
     has_change = False
 
+    # 1. ย้ายบอสเข้าเฟส
     for key, t_str in list(boss_db["active_spawns"].items()):
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
@@ -64,13 +66,23 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
+    # 2. ลบบอสในเฟสที่เกิน 90 นาที
     for key, t_str in list(boss_db["in_phase"].items()):
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
             spawn_time = BKK_TZ.localize(naive_time)
             if now >= (spawn_time + timedelta(minutes=90)):
                 boss_db["in_phase"].pop(key, None)
-                boss_db["dead_status"].pop(key, None)  # ล้างสถานะ Dead เมื่อบอสหมดเวลาเฟส
+                boss_db["dead_status"].pop(key, None)
+                has_change = True
+        except: continue
+
+    # 3. 🛠️ เคลียร์ User ที่ขาดการเชื่อมต่อ (ปรับจาก 90 วินาที เป็น 5 วินาที)
+    for user, last_ping_str in list(boss_db.get("online_users", {}).items()):
+        try:
+            lp_time = BKK_TZ.localize(datetime.strptime(last_ping_str, '%Y-%m-%d %H:%M:%S'))
+            if now >= (lp_time + timedelta(seconds=5)):
+                boss_db["online_users"].pop(user, None)
                 has_change = True
         except: continue
 
@@ -78,7 +90,6 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# 🔒 HTML หน้าล็อกอิน
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -99,17 +110,21 @@ LOGIN_TEMPLATE = """
         <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
         {% endif %}
         <form method="POST" action="/login">
-            <div class="mb-3">
-                <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required autofocus>
+            <div class="mb-3 text-start">
+                <label class="form-label text-muted mb-1" style="font-size:13px;">ชื่อผู้ใช้งาน (แสดงในระบบตี้)</label>
+                <input type="text" name="username" class="form-control bg-dark text-white border-secondary text-center fw-bold text-warning" placeholder="พิมพ์ชื่อเล่นของคุณ..." required autofocus>
             </div>
-            <button type="submit" class="btn btn-warning w-100 fw-bold">🔓 เข้าสู่ระบบ</button>
+            <div class="mb-3 text-start">
+                <label class="form-label text-muted mb-1" style="font-size:13px;">รหัสผ่านเข้าเว็บ</label>
+                <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required>
+            </div>
+            <button type="submit" class="btn btn-warning w-100 fw-bold mt-2">🔓 เข้าสู่ระบบ</button>
         </form>
     </div>
 </body>
 </html>
 """
 
-# HTML UI หลัก (เพิ่มการแสดงผลสถานะบอสตายแยกปุ่ม Dead)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -125,20 +140,17 @@ HTML_TEMPLATE = """
         .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 12px 14px !important; margin-bottom: 7px !important; border-radius: 8px !important; }
         .in-phase-bg { border-left: 6px solid #ff4757 !important; }
         .upcoming-bg { border-left: 6px solid #2ed573 !important; }
-        
-        /* สไตล์สำหรับบอสที่กด Dead แล้ว (จะแสดงเป็นสีเทาโปร่งแสง) */
-        .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.55 !important; border-left: 6px solid #6c757d !important; }
+        .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.65 !important; border-left: 6px solid #6c757d !important; }
         
         .col-boss-info { width: 38% !important; min-width: 120px; flex-shrink: 0; }
-        .col-boss-center { width: 28% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
-        .col-boss-action { width: 34% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
+        .col-boss-center { width: 30% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
+        .col-boss-action { width: 32% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
         
         .boss-title { font-size: 16px !important; font-weight: bold; }
         .time-text { font-size: 16px !important; font-weight: bold; }
         .countdown-text { font-size: 15px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         
         .form-control-sm, .form-select-sm { font-size: 14px !important; padding: 6px 10px !important; height: 38px !important; }
-        
         .btn-custom-sm { font-size: 14px !important; padding: 6px 10px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
         .btn-delete { padding: 6px 10px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
         
@@ -150,7 +162,10 @@ HTML_TEMPLATE = """
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
         .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
         .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
-        .red-badge-delete:hover { color: #ffcccc; }
+        
+        .online-box { background-color: #14211a !important; border: 1px solid #1e4631 !important; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+        .online-dot { width: 9px; height: 9px; background-color: #2ed573; border-radius: 50%; display: inline-block; margin-right: 5px; box-shadow: 0 0 8px #2ed573; }
+        .user-tag { background-color: #1e3a2b; color: #a3e2bc; padding: 3px 10px; border-radius: 15px; font-size: 13px; font-weight: bold; margin-right: 6px; margin-bottom: 5px; display: inline-block; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
@@ -159,11 +174,26 @@ HTML_TEMPLATE = """
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
             <div class="d-flex gap-2 align-items-center">
+                <span class="text-info fw-bold d-none d-sm-inline" style="font-size:13px;">👤 {{ current_user }}</span>
                 <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
                 </select>
-                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important; height:auto !important;">🔒 ออก</a>
+                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important; height:auto !important;">🔒 ออก ({{ current_user }})</a>
+            </div>
+        </div>
+
+        <div class="online-box">
+            <div class="d-flex align-items-center mb-2">
+                <span class="online-dot"></span>
+                <span class="fw-bold text-success" style="font-size: 14px;">🟢 เพื่อนในตี้ที่กำลังดูเว็บอยู่ ({{ online_users|length }} คน):</span>
+            </div>
+            <div class="d-flex flex-wrap">
+                {% for user in online_users %}
+                <span class="user-tag">👤 {{ user }}</span>
+                {% else %}
+                <span class="text-muted" style="font-size: 13px; padding-left: 5px;">ไม่มีใครเปิดอยู่เลยนอกจากคุณ...</span>
+                {% endfor %}
             </div>
         </div>
 
@@ -173,7 +203,6 @@ HTML_TEMPLATE = """
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-under100" onclick="setMode('under100')">📉 เลเวล ≤ 100</button>
                 <button class="btn btn-outline-danger btn-custom-sm flex-grow-1" id="btn-filter-redcard" onclick="setMode('redcard')">🔴 เฉพาะการ์ดแดง</button>
             </div>
-            
             <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary">
                 <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 เลเวล:</span>
                 <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="พิมพ์กรองเลเวลที่ต้องการ..." oninput="handleMinLevelInput(this.value)">
@@ -204,26 +233,24 @@ HTML_TEMPLATE = """
             {% for item in in_phase_list_sorted %}
             <div class="boss-card {% if item.is_dead %}boss-dead-bg{% else %}in-phase-bg{% endif %} d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <div class="col-boss-info">
-                    <span class="{% if item.is_dead %}text-secondary{% else %}text-danger{% endif %} boss-title">
+                    <span class="{% if item.is_dead %}text-secondary text-decoration-line-through{% else %}text-danger{% endif %} boss-title">
                         {% if item.is_dead %}💀 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% else %}🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% endif %}
                     </span>
                 </div>
                 <div class="col-boss-center">
                     {% if item.is_dead %}
-                    <span class="badge bg-secondary badge-phase">[💀 ตายแล้ว]</span>
+                    <span class="badge bg-secondary badge-phase" style="font-size:11px !important;">💀 ตายโดย: {{ item.dead_by }}</span>
                     {% else %}
                     <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
                     {% endif %}
                 </div>
                 <div class="col-boss-action">
                     <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
-                    
                     {% if item.is_dead %}
-                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-warning btn-custom-sm" title="ยกเลิกสถานะตาย">🔄</button>
+                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-warning btn-custom-sm">🔄</button>
                     {% else %}
-                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;" title="ทำเครื่องหมายว่าบอสตายแล้ว">💀 Dead</button>
+                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;">💀 Dead</button>
                     {% endif %}
-                    
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
                 </div>
             </div>
@@ -249,6 +276,7 @@ HTML_TEMPLATE = """
             {% endfor %}
             <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
+
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
@@ -280,6 +308,11 @@ HTML_TEMPLATE = """
             let parts = value.split("; " + name + "=");
             if (parts.length == 2) return parts.pop().split(";").shift();
             return null;
+        }
+
+        // 🛠️ ฟังก์ชันส่งสัญญาณยืนยันตัวตนออนไลน์
+        function sendOnlinePing() {
+            fetch('/api/ping').catch(() => {});
         }
 
         function loadRedCards() {
@@ -357,7 +390,7 @@ HTML_TEMPLATE = """
                 if(emptyNotice && container.querySelectorAll('.boss-item-row').length === 0) {
                     emptyNotice.classList.remove('d-none'); if(filterNotice) filterNotice.classList.add('d-none');
                 } else {
-                    if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.remove('d-none');
+                    if(emptyNotice) emptyNotice.mathbf{add}('d-none'); if(filterNotice) filterNotice.classList.remove('d-none');
                 }
             } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
@@ -368,6 +401,10 @@ HTML_TEMPLATE = """
             const savedMinLvl = parseInt(getCookie('tosm_min_level_val')) || 0;
             if(savedMinLvl > 0) { document.getElementById('levelFilterInput').value = savedMinLvl; minLevelFilter = savedMinLvl; }
             setMode(savedMode);
+            
+            sendOnlinePing();
+            // 🛠️ ปรับให้หน้าเว็บยิง Ping ไปหาเซิร์ฟเวอร์ทุกๆ 2 วินาที (เพื่อให้ทัน Timeout 5 วินาที)
+            setInterval(sendOnlinePing, 2000); 
         });
 
         document.getElementById('redCardInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addRedCard(); } });
@@ -428,13 +465,31 @@ HTML_TEMPLATE = """
 def is_authenticated():
     return request.cookies.get("tosm_auth") == WEB_PASSWORD
 
+def get_current_user():
+    return request.cookies.get("tosm_user", "Unknown")
+
+@app.route('/api/ping')
+def api_ping():
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        user = get_current_user()
+        if "online_users" not in boss_db:
+            boss_db["online_users"] = {}
+        boss_db["online_users"][user] = get_bkk_now().strftime('%Y-%m-%d %H:%M:%S')
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "pong"})
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         pwd = request.form.get('pwd', '')
+        username = request.form.get('username', '').strip() or "Player"
         if pwd == WEB_PASSWORD:
             response = make_response(redirect(url_for('index')))
             response.set_cookie('tosm_auth', WEB_PASSWORD, max_age=30*24*60*60, path='/')
+            response.set_cookie('tosm_user', username, max_age=30*24*60*60, path='/')
             return response
         return render_template_string(LOGIN_TEMPLATE, error=True)
     return render_template_string(LOGIN_TEMPLATE, error=False)
@@ -443,6 +498,7 @@ def login():
 def logout():
     response = make_response(redirect(url_for('login')))
     response.delete_cookie('tosm_auth', path='/')
+    response.delete_cookie('tosm_user', path='/')
     return response
 
 @app.route('/')
@@ -453,6 +509,9 @@ def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
+    current_user = get_current_user()
+    
+    online_users = list(boss_db.get("online_users", {}).keys())
     
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
@@ -469,16 +528,19 @@ def index():
         try: boss_level = int(boss_id)
         except: boss_level = -1
             
-        # ตรวจสอบว่าบอสตัวนี้มีสถานะ Dead อยู่ในฐานข้อมูลฐานข้อมูลหรือไม่
-        is_dead = boss_db.get("dead_status", {}).get(key, False)
+        dead_val = boss_db.get("dead_status", {}).get(key, False)
+        is_dead = False
+        dead_by = "Unknown"
+        if dead_val:
+            is_dead = True
+            dead_by = dead_val if isinstance(dead_val, str) else "ตี้เรา"
             
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
             "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed,
-            "is_dead": is_dead
+            "is_dead": is_dead, "dead_by": dead_by
         })
     
-    # ดัดแปลงการเรียงลำดับ: บอสที่ 'ตายแล้ว' (is_dead=True) จะโดนดีดไปอยู่ด้านล่างสุดของรายการเสมอ
     if sort_by == 'level':
         in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (x["is_dead"], -x["boss_level"], x["spawn_time_obj"]))
     else:
@@ -507,24 +569,24 @@ def index():
     
     return render_template_string(
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
-        active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
+        active_spawns_sorted=active_spawns_sorted, current_sort=sort_by,
+        current_user=current_user, online_users=online_users
     )
 
-# 💀 API สลับสถานะบอสตาย (Toggle Dead Status)
 @app.route('/toggle_dead/<boss_id>/<ch>')
 def toggle_dead(boss_id, ch):
     if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
     try:
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
+        user = get_current_user()
         
-        # สลับสถานะ True/False บันทึกลง Dict ของ dead_status
         if key in boss_db.get("dead_status", {}):
             boss_db["dead_status"].pop(key, None)
         else:
             if "dead_status" not in boss_db:
                 boss_db["dead_status"] = {}
-            boss_db["dead_status"][key] = True
+            boss_db["dead_status"][key] = user
             
         save_data(boss_db)
     except: pass
@@ -542,7 +604,7 @@ def add_boss():
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
-        boss_db["dead_status"].pop(key, None)  # ล้างสถานะเมื่อมีการตั้งเวลาใหม่
+        boss_db["dead_status"].pop(key, None)
         
         base_min = 0
         if time_input:
@@ -569,7 +631,7 @@ def kill_boss(boss_id, ch):
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
-        boss_db["dead_status"].pop(key, None)  # ล้างสถานะเมื่อกดใส่รอบถัดไป
+        boss_db["dead_status"].pop(key, None)
         
         time_input = request.args.get('time_input', '').strip()
         base_min = 0
