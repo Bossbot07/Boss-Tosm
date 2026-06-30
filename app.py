@@ -174,7 +174,7 @@ HTML_TEMPLATE = """
                 <div style="font-size:13px;" class="text-end me-1">
                     <span class="text-info fw-bold">👤 {{ current_user }}</span>
                     <span class="text-muted mx-1">|</span>
-                    <span class="text-success fw-bold">🟢 ตี้ที่เปิดอยู่: 
+                    <span class="text-success fw-bold">🟢 Online: 
                         {% for user in online_users %}
                             {% if user != current_user %}
                                 <span class="badge bg-dark border border-success text-success ms-1" style="font-size: 11px; padding: 3px 6px;">{{ user }}</span>
