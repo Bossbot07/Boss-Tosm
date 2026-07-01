@@ -429,12 +429,17 @@ HTML_TEMPLATE = """
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
             let needReload = false;
+            
             elements.forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
-                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; needReload = true; }
-                else {
+                
+                if (diff <= 0) { 
+                    el.innerHTML = "💥 เกิดแล้ว!"; 
+                    el.style.color = "#ff4757"; 
+                    needReload = true; 
+                } else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -449,7 +454,10 @@ HTML_TEMPLATE = """
                     }
                 }
             });
-            if (needReload) { setTimeout(() => { window.location.reload(); }, 1000); }
+            
+            if (needReload) { 
+                window.location.reload(); 
+            }
         }
 
         setInterval(updateCountdowns, 1000); updateCountdowns();
