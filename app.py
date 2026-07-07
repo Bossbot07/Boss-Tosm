@@ -101,24 +101,34 @@ LOGIN_TEMPLATE = """
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
         .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
+        
+        /* 🌟 เปลี่ยนสีพื้นหลังและตัวอักษรเวลากดคุมดำให้เห็นชัดเจน */
+        ::selection {
+            background-color: #ffc107 !important; 
+            color: #121212 !important;            
+        }
+        ::-moz-selection {
+            background-color: #ffc107 !important;
+            color: #121212 !important;
+        }
     </style>
 </head>
 <body class="container px-3">
     <div class="login-box text-center">
-        <h3 class="text-warning mb-4">⚔️ TOSM BOSS TRACKER</h3>
+        <h3 class="text-warning mb-4 fw-bold">⚔️ TOSM BOSS TRACKER</h3>
         {% if error %}
         <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
         {% endif %}
         <form method="POST" action="/login">
             <div class="mb-3 text-start">
-                <label class="form-label text-muted mb-1" style="font-size:13px;">ชื่อผู้ใช้งาน (แสดงในระบบตี้)</label>
+                <label class="form-label text-light fw-bold mb-1" style="font-size:14px; letter-spacing: 0.5px;">ชื่อผู้ใช้งาน (แสดงในระบบตี้)</label>
                 <input type="text" name="username" class="form-control bg-dark text-white border-secondary text-center fw-bold text-warning" placeholder="พิมพ์ชื่อเล่นของคุณ..." required autofocus>
             </div>
             <div class="mb-3 text-start">
-                <label class="form-label text-muted mb-1" style="font-size:13px;">รหัสผ่านเข้าเว็บ</label>
+                <label class="form-label text-light fw-bold mb-1" style="font-size:14px; letter-spacing: 0.5px;">รหัสผ่านเข้าเว็บ</label>
                 <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required>
             </div>
-            <button type="submit" class="btn btn-warning w-100 fw-bold mt-2">🔓 เข้าสู่ระบบ</button>
+            <button type="submit" class="btn btn-warning w-100 fw-bold mt-2 py-2">🔓 เข้าสู่ระบบ</button>
         </form>
     </div>
 </body>
