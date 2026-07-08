@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, jsonify, make_response, redirect, url_for
+﻿from flask import Flask, render_template_string, request, jsonify, make_response, redirect, url_for
 from datetime import datetime, timedelta
 import requests
 import pytz
@@ -101,34 +101,24 @@ LOGIN_TEMPLATE = """
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
         .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
-        
-        /* 🌟 เปลี่ยนสีพื้นหลังและตัวอักษรเวลากดคุมดำให้เห็นชัดเจน */
-        ::selection {
-            background-color: #ffc107 !important; 
-            color: #121212 !important;            
-        }
-        ::-moz-selection {
-            background-color: #ffc107 !important;
-            color: #121212 !important;
-        }
     </style>
 </head>
 <body class="container px-3">
     <div class="login-box text-center">
-        <h3 class="text-warning mb-4 fw-bold">⚔️ TOSM BOSS TRACKER</h3>
+        <h3 class="text-warning mb-4">⚔️ TOSM BOSS TRACKER</h3>
         {% if error %}
         <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
         {% endif %}
         <form method="POST" action="/login">
             <div class="mb-3 text-start">
-                <label class="form-label text-light fw-bold mb-1" style="font-size:14px; letter-spacing: 0.5px;">ชื่อผู้ใช้งาน (แสดงในระบบตี้)</label>
+                <label class="form-label text-muted mb-1" style="font-size:13px;">ชื่อผู้ใช้งาน (แสดงในระบบตี้)</label>
                 <input type="text" name="username" class="form-control bg-dark text-white border-secondary text-center fw-bold text-warning" placeholder="พิมพ์ชื่อเล่นของคุณ..." required autofocus>
             </div>
             <div class="mb-3 text-start">
-                <label class="form-label text-light fw-bold mb-1" style="font-size:14px; letter-spacing: 0.5px;">รหัสผ่านเข้าเว็บ</label>
+                <label class="form-label text-muted mb-1" style="font-size:13px;">รหัสผ่านเข้าเว็บ</label>
                 <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required>
             </div>
-            <button type="submit" class="btn btn-warning w-100 fw-bold mt-2 py-2">🔓 เข้าสู่ระบบ</button>
+            <button type="submit" class="btn btn-warning w-100 fw-bold mt-2">🔓 เข้าสู่ระบบ</button>
         </form>
     </div>
 </body>
@@ -177,6 +167,7 @@ HTML_TEMPLATE = """
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         
+        <!-- ส่วนหัวเว็บ (ปรับปรุงใหม่ตามรูปภาพ image_06539e.png เอารายชื่อปาร์ตี้มาไว้ข้างบนแบบเรียบง่าย) -->
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
             <h2 class="text-warning">⚔️ TOSM BOSS</h2>
             <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
@@ -201,6 +192,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
+        <!-- 🔍 แผงกรองข้อมูลหลัก -->
         <div class="panel-box">
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-all" onclick="setMode('all')">👁️ ทั้งหมด</button>
@@ -214,6 +206,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
+        <!-- 🔴 แผงจัดการรายการ "การ์ดแดง" -->
         <div class="panel-box">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <span class="text-danger fw-bold" style="font-size: 14px; white-space: nowrap;">📌 เพิ่มกลุ่มการ์ดแดง:</span>
@@ -223,6 +216,7 @@ HTML_TEMPLATE = """
             <div id="redCardListContainer" class="d-flex flex-wrap pt-1"></div>
         </div>
         
+        <!-- ฟอร์มบันทึกบอส -->
         <div class="boss-card p-2 mb-3">
             <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
                 <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
@@ -232,6 +226,7 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
+        <!-- บอสเข้าเฟส -->
         <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
         <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
@@ -264,6 +259,7 @@ HTML_TEMPLATE = """
             <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
         </div>
 
+        <!-- บอสรอเกิด -->
         <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
         <div class="d-flex flex-column gap-1" id="upcoming-container">
             {% for item in active_spawns_sorted %}
@@ -283,6 +279,7 @@ HTML_TEMPLATE = """
 
     </div>
 
+    <!-- Modal จัดการบอสตาย -->
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
             <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important;">
@@ -439,35 +436,22 @@ HTML_TEMPLATE = """
             const now = new Date().getTime();
             const elements = document.querySelectorAll('[data-target-time]');
             let needReload = false;
-            
             elements.forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
-                
-                if (diff <= 0) { 
-                    el.innerHTML = "💥 เกิดแล้ว!"; 
-                    el.style.color = "#ff4757"; 
-                    needReload = true; 
-                } else {
+                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; needReload = true; }
+                else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                    
-                    const displayMinutes = minutes; 
+                    const displayMinutes = String(minutes).padStart(2, '0');
                     const displaySeconds = String(seconds).padStart(2, '0');
-                    if (hours > 0) {
-                        const paddedMinutes = String(minutes).padStart(2, '0');
-                        el.innerHTML = `⏱️ ${hours}:${paddedMinutes}:${displaySeconds}`;
-                    } else {
-                        el.innerHTML = `⏱️ ${displayMinutes}:${displaySeconds}`;
-                    }
+                    if (hours > 0) el.innerHTML = `⏱️ ${hours}:${displayMinutes}:${displaySeconds}`;
+                    else el.innerHTML = `⏱️ ${displayMinutes}:${displaySeconds}`;
                 }
             });
-            
-            if (needReload) { 
-                window.location.reload(); 
-            }
+            if (needReload) { setTimeout(() => { window.location.reload(); }, 1000); }
         }
 
         setInterval(updateCountdowns, 1000); updateCountdowns();
@@ -526,6 +510,7 @@ def index():
     sort_by = request.cookies.get('boss_sort_order', 'time')
     current_user = get_current_user()
     
+    # ดึงรายชื่อผู้ใช้ที่กำลังเปิดเว็บอยู่
     online_users = list(boss_db.get("online_users", {}).keys())
     
     in_phase_list = []
