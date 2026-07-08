@@ -10,8 +10,8 @@ app = Flask(__name__)
 WEB_PASSWORD = "778"
 
 # Config ฐานข้อมูล Upstash ของคุณ
-REDIS_URL = "https://helping-egret-126070.upstash.io"
-REDIS_TOKEN = "gQAAAAAAAex2AAIgcDJhNDlkZThkNGI5OTc0YTQxYjUzMjU4MTcyNTRhZWM1MQ"
+REDIS_URL = "https://known-raptor-158847.upstash.io"
+REDIS_TOKEN = "gQAAAAAAAmx_AAIgcDE1NzBhYTRkMTU3MDI0OGEzYjEzMmJiMjU0NTRkZDliMA"
 BKK_TZ = pytz.timezone('Asia/Bangkok')
 
 def get_bkk_now():
