@@ -18,7 +18,7 @@ def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
 def load_data():
-    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}, "online_users": {}}
+    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}}
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
@@ -33,8 +33,7 @@ def load_data():
                 return {
                     "active_spawns": data.get("active_spawns", {}),
                     "in_phase": data.get("in_phase", {}),
-                    "dead_status": data.get("dead_status", {}),
-                    "online_users": data.get("online_users", {})
+                    "dead_status": data.get("dead_status", {})
                 }
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
@@ -77,15 +76,6 @@ def update_boss_statuses():
                 has_change = True
         except: continue
 
-    # 3. เคลียร์ User ที่ขาดการเชื่อมต่อ (Timeout 5 วินาที)
-    for user, last_ping_str in list(boss_db.get("online_users", {}).items()):
-        try:
-            lp_time = BKK_TZ.localize(datetime.strptime(last_ping_str, '%Y-%m-%d %H:%M:%S'))
-            if now >= (lp_time + timedelta(seconds=5)):
-                boss_db["online_users"].pop(user, None)
-                has_change = True
-        except: continue
-
     if has_change:
         save_data(boss_db)
     return boss_db
@@ -101,16 +91,8 @@ LOGIN_TEMPLATE = """
     <style>
         body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
         .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
-        
-        /* 🌟 เปลี่ยนสีพื้นหลังและตัวอักษรเวลากดคุมดำให้เห็นชัดเจน */
-        ::selection {
-            background-color: #ffc107 !important; 
-            color: #121212 !important;            
-        }
-        ::-moz-selection {
-            background-color: #ffc107 !important;
-            color: #121212 !important;
-        }
+        ::selection { background-color: #ffc107 !important; color: #121212 !important; }
+        ::-moz-selection { background-color: #ffc107 !important; color: #121212 !important; }
     </style>
 </head>
 <body class="container px-3">
@@ -182,16 +164,7 @@ HTML_TEMPLATE = """
             <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
                 <div style="font-size:13px;" class="text-end me-1">
                     <span class="text-info fw-bold">👤 {{ current_user }}</span>
-                    <span class="text-muted mx-1">|</span>
-                    <span class="text-success fw-bold">🟢 Online: 
-                        {% for user in online_users %}
-                            {% if user != current_user %}
-                                <span class="badge bg-dark border border-success text-success ms-1" style="font-size: 11px; padding: 3px 6px;">{{ user }}</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="text-muted" style="font-size: 11px;">ไม่มีคนอื่น</span>
-                        {% endfor %}
-                    </span>
+                    <button onclick="window.location.reload();" class="btn btn-sm btn-dark border-secondary text-white ms-2" style="font-size:12px;">🔄 รีเฟรชมือ</button>
                 </div>
                 <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
@@ -314,10 +287,6 @@ HTML_TEMPLATE = """
             return null;
         }
 
-        function sendOnlinePing() {
-            fetch('/api/ping').catch(() => {});
-        }
-
         function loadRedCards() {
             const saved = getCookie('tosm_red_cards');
             if (saved) { try { redCards = JSON.parse(decodeURIComponent(saved)); } catch(e) { redCards = []; } }
@@ -404,9 +373,6 @@ HTML_TEMPLATE = """
             const savedMinLvl = parseInt(getCookie('tosm_min_level_val')) || 0;
             if(savedMinLvl > 0) { document.getElementById('levelFilterInput').value = savedMinLvl; minLevelFilter = savedMinLvl; }
             setMode(savedMode);
-            
-            sendOnlinePing();
-            setInterval(sendOnlinePing, 2000); 
         });
 
         document.getElementById('redCardInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addRedCard(); } });
@@ -471,7 +437,8 @@ HTML_TEMPLATE = """
         }
 
         setInterval(updateCountdowns, 1000); updateCountdowns();
-        setInterval(() => { window.location.reload(); }, 45000);
+        // 🌟 ปรับลดความถี่การโหลดออโต้เหลือ 5 นาที เพื่อเซฟโควตา Redis (เน้นกดรีเฟรชมือนานๆ ที)
+        setInterval(() => { window.location.reload(); }, 300000);
     </script>
 </body>
 </html>
@@ -482,19 +449,6 @@ def is_authenticated():
 
 def get_current_user():
     return request.cookies.get("tosm_user", "Unknown")
-
-@app.route('/api/ping')
-def api_ping():
-    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
-    try:
-        boss_db = load_data()
-        user = get_current_user()
-        if "online_users" not in boss_db:
-            boss_db["online_users"] = {}
-        boss_db["online_users"][user] = get_bkk_now().strftime('%Y-%m-%d %H:%M:%S')
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "pong"})
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -525,8 +479,6 @@ def index():
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
     current_user = get_current_user()
-    
-    online_users = list(boss_db.get("online_users", {}).keys())
     
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
@@ -585,7 +537,7 @@ def index():
     return render_template_string(
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by,
-        current_user=current_user, online_users=online_users
+        current_user=current_user
     )
 
 @app.route('/toggle_dead/<boss_id>/<ch>')
