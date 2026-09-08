@@ -144,7 +144,6 @@ HTML_TEMPLATE = """
             box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
         }
 
-        /* การ์ดสถานะ Dead (สีเทา) */
         .boss-card-dead {
             background-color: #1a202c !important;
             border: 1.5px dashed #4a5568 !important;
@@ -336,7 +335,6 @@ HTML_TEMPLATE = """
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 12px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
 
-            <!-- รายการบอสสถานะ Dead (ย้ายมาไว้ด้านล่างสุดในกลุ่ม In Phase) -->
             {% for item in dead_list_sorted %}
             <div class="boss-card-dead boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <span class="close-btn" onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')">✕</span>
@@ -551,29 +549,47 @@ HTML_TEMPLATE = """
         function updateTimers() {
             const now = new Date().getTime();
             
+            // ตัวนับเวลาบอสเข้าเฟส (In Phase)
             document.querySelectorAll('[data-spawn-iso]').forEach(el => {
                 const spawnIso = el.getAttribute('data-spawn-iso');
                 const spawnTime = new Date(spawnIso).getTime();
                 const diff = now - spawnTime;
                 if (diff >= 0) {
                     const totalSec = Math.floor(diff / 1000);
-                    const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+                    const hours = Math.floor(totalSec / 3600);
+                    const mins = Math.floor((totalSec % 3600) / 60);
                     const secs = String(totalSec % 60).padStart(2, '0');
-                    el.innerHTML = `+${mins}:${secs}`;
+
+                    if (hours > 0) {
+                        el.innerHTML = `+${hours}:${String(mins).padStart(2, '0')}:${secs}`;
+                    } else {
+                        el.innerHTML = `+${mins}:${secs}`;
+                    }
                 } else {
-                    el.innerHTML = `+00:00`;
+                    el.innerHTML = `+0:00`;
                 }
             });
 
+            // ตัวนับถอยหลังบอสรอเกิด (Upcoming)
             document.querySelectorAll('[data-target-time]').forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
-                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; }
-                else {
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                    el.innerHTML = `⏱️ ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                if (diff <= 0) { 
+                    el.innerHTML = "💥 เกิดแล้ว!"; 
+                    el.style.color = "#ff4757"; 
+                } else {
+                    const totalSec = Math.floor(diff / 1000);
+                    const hours = Math.floor(totalSec / 3600);
+                    const minutes = Math.floor((totalSec % 3600) / 60);
+                    const seconds = String(totalSec % 60).padStart(2, '0');
+
+                    if (hours > 0) {
+                        const mStr = String(minutes).padStart(2, '0');
+                        el.innerHTML = `⏱️ ${hours}:${mStr}:${seconds}`;
+                    } else {
+                        el.innerHTML = `⏱️ ${minutes}:${seconds}`;
+                    }
                 }
             });
         }
@@ -631,7 +647,6 @@ def index():
         try: boss_level = int(boss_id)
         except: boss_level = -1
 
-        # แยกกรณีสถานะ Dead
         if dead_status.get(key):
             dead_list.append({
                 "boss_id": boss_id, "boss_level": boss_level, "ch": ch
