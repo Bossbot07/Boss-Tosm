@@ -119,12 +119,30 @@ HTML_TEMPLATE = """
         .main-container { max-width: 480px !important; margin: 0 auto; }
         
         .boss-card-inphase {
-            background-color: #0d1322 !important;
-            border: 1.5px solid #10b981 !important;
             border-radius: 12px !important;
             padding: 8px 12px !important;
             margin-bottom: 6px !important;
             position: relative;
+            transition: all 0.2s ease;
+        }
+
+        /* สีการ์ดตาม Phase */
+        .phase-style-1, .phase-style-2 {
+            background-color: #0d1322 !important;
+            border: 1.5px solid #10b981 !important;
+        }
+        .phase-style-3 {
+            background-color: #171609 !important;
+            border: 1.5px solid #eab308 !important;
+        }
+        .phase-style-4 {
+            background-color: #1c130b !important;
+            border: 1.5px solid #f97316 !important;
+        }
+        .phase-style-on {
+            background-color: #1f0b0e !important;
+            border: 1.5px solid #ef4444 !important;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
         }
 
         .boss-card-upcoming {
@@ -263,13 +281,14 @@ HTML_TEMPLATE = """
         <h6 class="text-danger fw-bold mt-2 mb-1" style="font-size: 14px;">🚨 เข้าเฟสแล้ว (In Phase)</h6>
         <div class="d-flex flex-column" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
-            <div class="boss-card-inphase boss-item-row" data-boss-level="{{ item.boss_level }}">
+            <div class="boss-card-inphase boss-item-row {{ item.card_class }}" data-boss-level="{{ item.boss_level }}">
                 <span class="close-btn" onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')">✕</span>
                 
                 <div class="d-flex align-items-center gap-1 mb-1">
                     <span class="pill-badge">LV.{{ item.boss_id }}</span>
                     <span class="pill-badge">CH.{{ item.ch }}</span>
-                    <div class="ms-auto pe-3">
+                    <div class="ms-auto pe-3 d-flex gap-1">
+                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;" title="ทำลาย/ตาย">💀 Dead</button>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;">เวลาใหม่</button>
                     </div>
                 </div>
@@ -563,10 +582,21 @@ def index():
         phase_str = f"{phase_val:.1f}"
         phase_main, phase_sub = phase_str.split('.')
 
+        # กำหนด CSS Class ตามเลเวล Phase
+        if is_on:
+            card_class = "phase-style-on"
+        elif phase_val >= 4.0:
+            card_class = "phase-style-4"
+        elif phase_val >= 3.0:
+            card_class = "phase-style-3"
+        else:
+            card_class = "phase-style-1"
+
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
             "spawn_time_obj": spawn_time, "iso_time": iso_time,
-            "phase_val": phase_val, "is_on": is_on, "phase_main": phase_main, "phase_sub": phase_sub
+            "phase_val": phase_val, "is_on": is_on, "phase_main": phase_main, "phase_sub": phase_sub,
+            "card_class": card_class
         })
 
     if sort_by == 'level':
