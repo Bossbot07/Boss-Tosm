@@ -86,20 +86,20 @@ LOGIN_TEMPLATE = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #0b0f19 !important; color: #e0e0e0 !important; font-family: sans-serif; }
-        .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #121826; padding: 25px; border-radius: 12px; border: 1px solid #10b981; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
+        .login-box { max-width: 320px; margin: 80px auto 0px; background-color: #121826; padding: 20px; border-radius: 12px; border: 1px solid #10b981; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body class="container px-3">
     <div class="login-box text-center">
-        <h3 class="text-success mb-4">⚔️ TOSM BOSS TRACKER</h3>
+        <h4 class="text-success mb-3 fw-bold">⚔️ TOSM BOSS TRACKER</h4>
         {% if error %}
-        <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
+        <div class="alert alert-danger py-1" style="font-size: 13px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
         {% endif %}
         <form method="POST" action="/login">
             <div class="mb-3">
-                <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required autofocus>
+                <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center form-control-sm" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required autofocus>
             </div>
-            <button type="submit" class="btn btn-success w-100 fw-bold">🔓 เข้าสู่ระบบ</button>
+            <button type="submit" class="btn btn-success w-100 fw-bold btn-sm">🔓 เข้าสู่ระบบ</button>
         </form>
     </div>
 </body>
@@ -115,63 +115,75 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #0b0f19 !important; color: #e0e0e0 !important; font-family: system-ui, -apple-system, sans-serif !important; font-size: 15px !important; }
-        .main-container { max-width: 520px !important; margin: 0 auto; }
+        body { background-color: #0b0f19 !important; color: #e0e0e0 !important; font-family: system-ui, -apple-system, sans-serif !important; font-size: 13px !important; }
+        .main-container { max-width: 480px !important; margin: 0 auto; }
         
-        /* Widget Style ในภาพ */
         .boss-card-inphase {
             background-color: #0d1322 !important;
-            border: 2px solid #10b981 !important;
-            border-radius: 18px !important;
-            padding: 14px 18px !important;
-            margin-bottom: 12px !important;
+            border: 1.5px solid #10b981 !important;
+            border-radius: 12px !important;
+            padding: 8px 12px !important;
+            margin-bottom: 6px !important;
             position: relative;
         }
 
         .boss-card-upcoming {
             background-color: #111827 !important;
             border: 1px solid #1f2937 !important;
-            border-radius: 12px !important;
-            padding: 10px 14px !important;
-            margin-bottom: 8px !important;
+            border-radius: 8px !important;
+            padding: 6px 10px !important;
+            margin-bottom: 5px !important;
         }
 
         .pill-badge {
-            border: 1.5px solid #10b981;
+            border: 1px solid #10b981;
             color: #ffffff;
-            font-weight: 800;
-            border-radius: 50px;
-            padding: 2px 14px;
-            font-size: 14px;
+            font-weight: 700;
+            border-radius: 20px;
+            padding: 1px 8px;
+            font-size: 11px;
             display: inline-block;
         }
 
         .phase-display {
-            font-size: 20px;
+            font-size: 15px;
             font-weight: 800;
             color: #38bdf8;
-            border: 2px solid #0284c7;
-            border-radius: 50px;
-            padding: 2px 14px;
+            border: 1.5px solid #0284c7;
+            border-radius: 20px;
+            padding: 1px 10px;
             cursor: pointer;
             background: #082f49;
             user-select: none;
         }
         .phase-display:hover { background: #0c4a6e; }
 
+        .phase-display-on {
+            font-size: 15px;
+            font-weight: 800;
+            color: #ef4444;
+            border: 1.5px solid #dc2626;
+            border-radius: 20px;
+            padding: 1px 12px;
+            cursor: pointer;
+            background: #450a0a;
+            user-select: none;
+        }
+        .phase-display-on:hover { background: #7f1d1d; }
+
         .btn-plus-two {
             border: 1px solid #334155;
             background-color: #1e293b;
             color: #ffffff;
-            border-radius: 50px;
-            padding: 3px 12px;
-            font-size: 14px;
+            border-radius: 20px;
+            padding: 1px 8px;
+            font-size: 11px;
             font-weight: 700;
         }
         .btn-plus-two:hover { background-color: #334155; }
 
         .elapsed-timer {
-            font-size: 26px;
+            font-size: 18px;
             font-weight: 800;
             color: #a7f3d0;
             font-family: monospace;
@@ -183,64 +195,64 @@ HTML_TEMPLATE = """
             background: #1e293b;
             color: #94a3b8;
             border-radius: 50%;
-            width: 28px;
-            height: 28px;
+            width: 22px;
+            height: 22px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             padding: 0;
-            font-size: 12px;
+            font-size: 10px;
         }
         .btn-reset-time:hover { color: #fff; background: #334155; }
 
-        .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; }
-        .btn-custom-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 8px !important; }
+        .form-control-sm, .form-select-sm { font-size: 12px !important; padding: 2px 6px !important; height: 28px !important; }
+        .btn-custom-sm { font-size: 12px !important; padding: 2px 8px !important; height: 28px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
 
-        .panel-box { background-color: #111827; padding: 10px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 10px; }
-        .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
-        .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; }
+        .panel-box { background-color: #111827; padding: 8px; border-radius: 8px; border: 1px solid #1f2937; margin-bottom: 8px; }
+        .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 1px 6px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-right: 4px; margin-bottom: 4px; }
+        .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 4px; cursor: pointer; padding: 0; }
         
-        .close-btn { position: absolute; top: 12px; right: 14px; color: #64748b; cursor: pointer; font-size: 14px; }
+        .close-btn { position: absolute; top: 6px; right: 10px; color: #64748b; cursor: pointer; font-size: 12px; }
         .close-btn:hover { color: #ef4444; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h3 class="text-success fw-bold m-0">⚔️ TOSM BOSS</h3>
-            <div class="d-flex gap-2 align-items-center">
+            <h4 class="text-success fw-bold m-0" style="font-size: 18px;">⚔️ TOSM BOSS</h4>
+            <div class="d-flex gap-1 align-items-center">
                 <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
                 </select>
-                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important;">🔒 ออก</a>
+                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-0 px-2" style="font-size:11px !important; height: 28px;">🔒 ออก</a>
             </div>
         </div>
 
         <div class="panel-box">
-            <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-1">
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-all" onclick="setMode('all')">👁️ ทั้งหมด</button>
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-under100" onclick="setMode('under100')">📉 เลเวล ≤ 100</button>
                 <button class="btn btn-outline-danger btn-custom-sm flex-grow-1" id="btn-filter-redcard" onclick="setMode('redcard')">🔴 การ์ดแดง</button>
             </div>
-            <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary">
-                <span class="text-info fw-bold" style="font-size: 13px;">🎯 กรองเลเวลขั้นต่ำ:</span>
+            <div class="d-flex align-items-center gap-2 mt-2 pt-1 border-top border-secondary">
+                <span class="text-info fw-bold" style="font-size: 12px;">🎯 กรองเลเวลขั้นต่ำ:</span>
                 <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="ใส่เลเวล..." oninput="handleMinLevelInput(this.value)">
             </div>
         </div>
 
         <div class="panel-box">
-            <div class="d-flex align-items-center gap-2">
-                <span class="text-danger fw-bold" style="font-size: 13px; white-space: nowrap;">📌 เพิ่มการ์ดแดง:</span>
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-danger fw-bold" style="font-size: 12px; white-space: nowrap;">📌 เพิ่มการ์ดแดง:</span>
                 <input type="number" id="redCardInput" class="form-control form-control-sm bg-dark text-white border-danger text-center" placeholder="เลเวล">
                 <button onclick="addRedCard()" class="btn btn-danger btn-custom-sm">➕ เพิ่ม</button>
             </div>
-            <div id="redCardListContainer" class="d-flex flex-wrap pt-2"></div>
+            <div id="redCardListContainer" class="d-flex flex-wrap pt-1"></div>
         </div>
         
         <div class="panel-box">
-            <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
+            <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-1">
                 <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="เลเวล" required></div>
                 <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="Ch." required></div>
                 <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="-5 หรือ 1.30"></div>
@@ -248,70 +260,76 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
-        <h5 class="text-danger fw-bold mt-3 mb-2">🚨 เข้าเฟสแล้ว (In Phase)</h5>
+        <h6 class="text-danger fw-bold mt-2 mb-1" style="font-size: 14px;">🚨 เข้าเฟสแล้ว (In Phase)</h6>
         <div class="d-flex flex-column" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
             <div class="boss-card-inphase boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <span class="close-btn" onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')">✕</span>
                 
-                <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="d-flex align-items-center gap-1 mb-1">
                     <span class="pill-badge">LV.{{ item.boss_id }}</span>
                     <span class="pill-badge">CH.{{ item.ch }}</span>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <span class="text-secondary fw-bold" style="font-size: 14px;">Phase :</span>
-                    <span class="phase-display" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
-                        {{ item.phase_main }}<span style="font-size: 16px;">.{{ item.phase_sub }}</span>
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <span class="text-secondary fw-bold" style="font-size: 12px;">Phase :</span>
+                    {% if item.is_on %}
+                    <span class="phase-display-on" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
+                        ON
                     </span>
+                    {% else %}
+                    <span class="phase-display" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
+                        {{ item.phase_main }}<span style="font-size: 12px;">.{{ item.phase_sub }}</span>
+                    </span>
+                    {% endif %}
                     <button class="btn-plus-two" onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)">+.2</button>
                     
                     <div class="ms-auto">
-                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">เวลาใหม่</button>
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2">เวลาใหม่</button>
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-1">
                     <span class="elapsed-timer" data-spawn-iso="{{ item.iso_time }}">+00:00</span>
                     <button class="btn-reset-time" title="รีเซ็ตเวลา" onclick="killBossDirect('{{ item.boss_id }}', '{{ item.ch }}')">↺</button>
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
+            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 12px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสตรงตามตัวกรอง...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 12px;">ไม่มีบอสตรงตามตัวกรอง...</p>
         </div>
 
-        <h5 class="text-success fw-bold mt-4 mb-2">⏳ กำลังรอเกิด (Upcoming)</h5>
+        <h6 class="text-success fw-bold mt-3 mb-1" style="font-size: 14px;">⏳ กำลังรอเกิด (Upcoming)</h6>
         <div class="d-flex flex-column" id="upcoming-container">
             {% for item in active_spawns_sorted %}
             <div class="boss-card-upcoming d-flex align-items-center justify-content-between boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <div>
-                    <span class="text-success fw-bold me-2">LV.{{ item.boss_id }} [Ch.{{ item.ch }}]</span>
-                    <span class="text-warning fw-bold" style="font-size: 13px;">{{ item.t_str[11:16] }}</span>
+                    <span class="text-success fw-bold me-2" style="font-size: 12px;">LV.{{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+                    <span class="text-warning fw-bold" style="font-size: 12px;">{{ item.t_str[11:16] }}</span>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-info fw-bold" data-target-time="{{ item.iso_time }}" style="font-size: 14px;">คำนวณ...</span>
-                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-2" style="height:28px !important;">🗑️</button>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-info fw-bold" data-target-time="{{ item.iso_time }}" style="font-size: 12px;">คำนวณ...</span>
+                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-1" style="height:24px !important; font-size:10px !important;">🗑️</button>
                 </div>
             </div>
             {% else %}
-            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
+            <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 12px;">ไม่มีบอสรอเกิด...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสตรงตามตัวกรอง...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 12px;">ไม่มีบอสตรงตามตัวกรอง...</p>
         </div>
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
+        <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 280px;">
             <div class="modal-content bg-dark text-white border-secondary">
-                <div class="modal-body p-3">
+                <div class="modal-body p-2">
                     <input type="hidden" id="modal-boss-id"><input type="hidden" id="modal-ch">
-                    <div class="mb-3">
-                        <label class="form-label mb-2" style="font-size: 14px; font-weight: bold;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0 text-center" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 15px; height: 42px;">
+                    <div class="mb-2">
+                        <label class="form-label mb-1" style="font-size: 12px; font-weight: bold;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
+                        <input type="text" id="modal-time-input" class="form-control form-control-sm bg-secondary text-white border-0 text-center" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)">
                     </div>
-                    <div class="d-flex justify-content-end gap-2">
+                    <div class="d-flex justify-content-end gap-1">
                         <button type="button" class="btn btn-secondary btn-custom-sm" data-bs-dismiss="modal">ยกเลิก</button>
                         <button type="button" onclick="submitKill()" class="btn btn-success btn-custom-sm">ยืนยัน</button>
                     </div>
@@ -360,7 +378,7 @@ HTML_TEMPLATE = """
         function renderRedCards() {
             const container = document.getElementById('redCardListContainer');
             container.innerHTML = "";
-            if (redCards.length === 0) { container.innerHTML = '<span class="text-muted" style="font-size: 12px;">ไม่มีรายการการ์ดแดง...</span>'; return; }
+            if (redCards.length === 0) { container.innerHTML = '<span class="text-muted" style="font-size: 11px;">ไม่มีรายการการ์ดแดง...</span>'; return; }
             redCards.forEach(lvl => {
                 const badge = document.createElement('span'); badge.className = 'red-badge-item';
                 badge.innerHTML = `Lv.${lvl} <button class="red-badge-delete" onclick="deleteRedCard(${lvl})">×</button>`;
@@ -415,7 +433,7 @@ HTML_TEMPLATE = """
 
         function cyclePhase(bossId, ch, currentVal) {
             let nextVal = Math.round((currentVal + 1.0) * 10) / 10;
-            if (nextVal > 4.8) nextVal = 1.0;
+            if (nextVal >= 5.0) nextVal = 1.0;
             runApi(`/set_phase/${bossId}/${ch}?phase=${nextVal}`);
         }
 
@@ -464,7 +482,6 @@ HTML_TEMPLATE = """
         function updateTimers() {
             const now = new Date().getTime();
             
-            // เดินหน้า +MM:SS
             document.querySelectorAll('[data-spawn-iso]').forEach(el => {
                 const spawnIso = el.getAttribute('data-spawn-iso');
                 const spawnTime = new Date(spawnIso).getTime();
@@ -479,7 +496,6 @@ HTML_TEMPLATE = """
                 }
             });
 
-            // ถอยหลัง Upcoming
             document.querySelectorAll('[data-target-time]').forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
@@ -544,13 +560,14 @@ def index():
         except: boss_level = -1
 
         phase_val = round(float(boss_phases.get(key, 1.0)), 1)
+        is_on = phase_val >= 5.0
         phase_str = f"{phase_val:.1f}"
         phase_main, phase_sub = phase_str.split('.')
 
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
             "spawn_time_obj": spawn_time, "iso_time": iso_time,
-            "phase_val": phase_val, "phase_main": phase_main, "phase_sub": phase_sub
+            "phase_val": phase_val, "is_on": is_on, "phase_main": phase_main, "phase_sub": phase_sub
         })
 
     if sort_by == 'level':
@@ -612,7 +629,9 @@ def add_phase(boss_id, ch):
             boss_db["boss_phases"] = {}
             
         curr_val = float(boss_db["boss_phases"].get(key, 1.0))
-        boss_db["boss_phases"][key] = round(curr_val + delta, 1)
+        next_val = round(curr_val + delta, 1)
+        if next_val > 5.0: next_val = 5.0
+        boss_db["boss_phases"][key] = next_val
         save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
