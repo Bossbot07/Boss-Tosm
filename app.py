@@ -146,12 +146,12 @@ HTML_TEMPLATE = """
         }
 
         .phase-display {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 800;
             color: #38bdf8;
             border: 1.5px solid #0284c7;
             border-radius: 20px;
-            padding: 1px 10px;
+            padding: 1px 8px;
             cursor: pointer;
             background: #082f49;
             user-select: none;
@@ -159,12 +159,12 @@ HTML_TEMPLATE = """
         .phase-display:hover { background: #0c4a6e; }
 
         .phase-display-on {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 800;
             color: #ef4444;
             border: 1.5px solid #dc2626;
             border-radius: 20px;
-            padding: 1px 12px;
+            padding: 1px 10px;
             cursor: pointer;
             background: #450a0a;
             user-select: none;
@@ -176,14 +176,14 @@ HTML_TEMPLATE = """
             background-color: #1e293b;
             color: #ffffff;
             border-radius: 20px;
-            padding: 1px 8px;
+            padding: 1px 7px;
             font-size: 11px;
             font-weight: 700;
         }
         .btn-plus-two:hover { background-color: #334155; }
 
         .elapsed-timer {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 800;
             color: #a7f3d0;
             font-family: monospace;
@@ -195,8 +195,8 @@ HTML_TEMPLATE = """
             background: #1e293b;
             color: #94a3b8;
             border-radius: 50%;
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -269,29 +269,28 @@ HTML_TEMPLATE = """
                 <div class="d-flex align-items-center gap-1 mb-1">
                     <span class="pill-badge">LV.{{ item.boss_id }}</span>
                     <span class="pill-badge">CH.{{ item.ch }}</span>
+                    <div class="ms-auto pe-3">
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;">เวลาใหม่</button>
+                    </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-1 mb-1">
-                    <span class="text-secondary fw-bold" style="font-size: 12px;">Phase :</span>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-secondary fw-bold" style="font-size: 12px;">Phase:</span>
                     {% if item.is_on %}
                     <span class="phase-display-on" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
                         ON
                     </span>
                     {% else %}
                     <span class="phase-display" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
-                        {{ item.phase_main }}<span style="font-size: 12px;">.{{ item.phase_sub }}</span>
+                        {{ item.phase_main }}<span style="font-size: 11px;">.{{ item.phase_sub }}</span>
                     </span>
                     {% endif %}
                     <button class="btn-plus-two" onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)">+.2</button>
                     
-                    <div class="ms-auto">
-                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2">เวลาใหม่</button>
+                    <div class="ms-auto d-flex align-items-center gap-1">
+                        <span class="elapsed-timer" data-spawn-iso="{{ item.iso_time }}">+00:00</span>
+                        <button class="btn-reset-time" title="รีเซ็ตเวลา" onclick="killBossDirect('{{ item.boss_id }}', '{{ item.ch }}')">↺</button>
                     </div>
-                </div>
-
-                <div class="d-flex align-items-center gap-1">
-                    <span class="elapsed-timer" data-spawn-iso="{{ item.iso_time }}">+00:00</span>
-                    <button class="btn-reset-time" title="รีเซ็ตเวลา" onclick="killBossDirect('{{ item.boss_id }}', '{{ item.ch }}')">↺</button>
                 </div>
             </div>
             {% else %}
