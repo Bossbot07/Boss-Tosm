@@ -126,7 +126,6 @@ HTML_TEMPLATE = """
             transition: all 0.2s ease;
         }
 
-        /* สีการ์ดตาม Phase */
         .phase-style-1, .phase-style-2 {
             background-color: #0d1322 !important;
             border: 1.5px solid #10b981 !important;
@@ -328,6 +327,7 @@ HTML_TEMPLATE = """
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <span class="text-info fw-bold" data-target-time="{{ item.iso_time }}" style="font-size: 12px;">คำนวณ...</span>
+                    <button onclick="runApi('/force_spawn/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-warning btn-custom-sm py-0 px-1" style="height:24px !important; font-size:10px !important;" title="กดเกิดทันที">💥 เกิดแล้ว</button>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-1" style="height:24px !important; font-size:10px !important;">🗑️</button>
                 </div>
             </div>
@@ -449,15 +449,14 @@ HTML_TEMPLATE = """
             } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
 
-        /* ปรับปรุงระบบเปลี่ยนเฟส: ถึงเฟส 4 แล้วกดเปลี่ยนจะไปเป็น ON (5.0) ทันที และจาก ON จะวนกลับมา 1.0 */
         function cyclePhase(bossId, ch, currentVal) {
             let nextVal = 1.0;
             if (currentVal >= 4.0 && currentVal < 5.0) {
-                nextVal = 5.0; // Phase 4 -> ON
+                nextVal = 5.0;
             } else if (currentVal >= 5.0) {
-                nextVal = 1.0; // ON -> Phase 1
+                nextVal = 1.0;
             } else {
-                nextVal = Math.floor(currentVal) + 1.0; // Phase 1, 2, 3 -> เฟสถัดไป
+                nextVal = Math.floor(currentVal) + 1.0;
             }
             runApi(`/set_phase/${bossId}/${ch}?phase=${nextVal}`);
         }
@@ -589,7 +588,6 @@ def index():
         phase_str = f"{phase_val:.1f}"
         phase_main, phase_sub = phase_str.split('.')
 
-        # กำหนด CSS Class ตามเลเวล Phase
         if is_on:
             card_class = "phase-style-on"
         elif phase_val >= 4.0:
@@ -636,6 +634,19 @@ def index():
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
     )
+
+@app.route('/force_spawn/<boss_id>/<ch>')
+def force_spawn(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        now_str = get_bkk_now().strftime('%Y-%m-%d %H:%M:%S')
+        boss_db["active_spawns"].pop(key, None)
+        boss_db["in_phase"][key] = now_str
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 @app.route('/set_phase/<boss_id>/<ch>')
 def set_phase(boss_id, ch):
