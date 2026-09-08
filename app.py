@@ -129,8 +129,8 @@ HTML_TEMPLATE = """
         .upcoming-bg { border-left: 6px solid #2ed573 !important; }
         .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.55 !important; border-left: 6px solid #6c757d !important; }
         
-        .col-boss-info { width: 32% !important; min-width: 110px; flex-shrink: 0; }
-        .col-boss-center { width: 33% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+        .col-boss-info { width: 30% !important; min-width: 100px; flex-shrink: 0; }
+        .col-boss-center { width: 35% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
         .col-boss-action { width: 35% !important; display: flex; justify-content: flex-end; align-items: center; gap: 4px; flex-shrink: 0; }
         
         .boss-title { font-size: 15px !important; font-weight: bold; }
@@ -146,7 +146,6 @@ HTML_TEMPLATE = """
 
         h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
-        .badge-phase { font-size: 12px !important; padding: 4px 6px !important; font-weight: bold; border-radius: 6px !important; }
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
@@ -209,11 +208,21 @@ HTML_TEMPLATE = """
                         {% if item.is_dead %}💀 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% else %}🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% endif %}
                     </span>
                 </div>
-                <div class="col-boss-center">
+                <div class="col-boss-center flex-column align-items-start justify-content-center">
                     {% if item.is_dead %}
-                    <span class="badge bg-secondary badge-phase">[💀 ตายแล้ว]</span>
+                    <span class="badge bg-secondary" style="font-size: 12px;">[💀 ตายแล้ว]</span>
                     {% else %}
-                    <span class="badge bg-danger badge-phase">เฟส {{ item.phase_val }} ({{ item.minutes_passed }}น.)</span>
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <span class="text-warning fw-bold" style="font-size:13px;">เฟส {{ item.phase_val }}</span>
+                        <span class="text-muted" style="font-size:11px;">({{ item.minutes_passed }}น.)</span>
+                        <button onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)" class="btn btn-warning btn-add-val">+0.2</button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 1.0)" class="btn btn-phase {% if item.phase_val == 1.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F1</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 2.0)" class="btn btn-phase {% if item.phase_val == 2.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F2</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 3.0)" class="btn btn-phase {% if item.phase_val == 3.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F3</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 4.0)" class="btn btn-phase {% if item.phase_val == 4.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F4</button>
+                    </div>
                     {% endif %}
                 </div>
                 <div class="col-boss-action">
@@ -237,20 +246,11 @@ HTML_TEMPLATE = """
             {% for item in active_spawns_sorted %}
             <div class="boss-card upcoming-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
                 <div class="col-boss-info"><span class="text-success boss-title">⏳ {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
-                <div class="col-boss-center flex-column align-items-start justify-content-center">
-                    <div class="d-flex align-items-center gap-1 mb-1">
-                        <span class="text-warning time-text me-1">{{ item.t_str[11:16] }}</span>
-                        <button onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)" class="btn btn-warning btn-add-val">+0.2</button>
-                    </div>
-                    <div class="btn-group btn-group-sm">
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 1.0)" class="btn btn-phase {% if item.phase_val == 1.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F1</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 2.0)" class="btn btn-phase {% if item.phase_val == 2.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F2</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 3.0)" class="btn btn-phase {% if item.phase_val == 3.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F3</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 4.0)" class="btn btn-phase {% if item.phase_val == 4.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F4</button>
-                    </div>
+                <div class="col-boss-center align-items-center">
+                    <span class="text-warning time-text me-2">{{ item.t_str[11:16] }}</span>
                 </div>
                 <div class="col-boss-action">
-                    <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
+                    <div class="countdown-text me-1" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
                 </div>
             </div>
@@ -515,11 +515,9 @@ def index():
         try: boss_level = int(boss_id)
         except: boss_level = -1
 
-        phase_val = round(float(boss_phases.get(key, 1.0)), 1)
-
         upcoming_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
-            "spawn_time_obj": spawn_time, "iso_time": iso_time, "phase_val": phase_val
+            "spawn_time_obj": spawn_time, "iso_time": iso_time
         })
 
     if sort_by == 'level': active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
