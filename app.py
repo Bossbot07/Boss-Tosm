@@ -18,7 +18,7 @@ def get_bkk_now():
     return datetime.now(pytz.utc).astimezone(BKK_TZ)
 
 def load_data():
-    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}}
+    default_data = {"active_spawns": {}, "in_phase": {}, "dead_status": {}, "boss_phases": {}}
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         response = requests.get(f"{REDIS_URL}/get/tosm_boss_db", headers=headers, timeout=5)
@@ -33,7 +33,8 @@ def load_data():
                 return {
                     "active_spawns": data.get("active_spawns", {}),
                     "in_phase": data.get("in_phase", {}),
-                    "dead_status": data.get("dead_status", {})
+                    "dead_status": data.get("dead_status", {}),
+                    "boss_phases": data.get("boss_phases", {})
                 }
         else:
             print(f"⚠️ Upstash Error Code: {response.status_code}")
@@ -68,9 +69,10 @@ def update_boss_statuses():
         try:
             naive_time = datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
             spawn_time = BKK_TZ.localize(naive_time)
-            if now >= (spawn_time + timedelta(minutes=90)):
+            if now >= (spawn_time + timedelta(minutes=120)):
                 boss_db["in_phase"].pop(key, None)
                 boss_db["dead_status"].pop(key, None)
+                boss_db.get("boss_phases", {}).pop(key, None)
                 has_change = True
         except: continue
 
@@ -127,21 +129,24 @@ HTML_TEMPLATE = """
         .upcoming-bg { border-left: 6px solid #2ed573 !important; }
         .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.55 !important; border-left: 6px solid #6c757d !important; }
         
-        .col-boss-info { width: 38% !important; min-width: 120px; flex-shrink: 0; }
-        .col-boss-center { width: 28% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; }
-        .col-boss-action { width: 34% !important; display: flex; justify-content: flex-end; align-items: center; gap: 6px; flex-shrink: 0; }
+        .col-boss-info { width: 32% !important; min-width: 110px; flex-shrink: 0; }
+        .col-boss-center { width: 33% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+        .col-boss-action { width: 35% !important; display: flex; justify-content: flex-end; align-items: center; gap: 4px; flex-shrink: 0; }
         
-        .boss-title { font-size: 16px !important; font-weight: bold; }
-        .time-text { font-size: 16px !important; font-weight: bold; }
-        .countdown-text { font-size: 15px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
+        .boss-title { font-size: 15px !important; font-weight: bold; }
+        .time-text { font-size: 15px !important; font-weight: bold; }
+        .countdown-text { font-size: 14px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
         
-        .form-control-sm, .form-select-sm { font-size: 14px !important; padding: 6px 10px !important; height: 38px !important; }
-        .btn-custom-sm { font-size: 14px !important; padding: 6px 10px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
-        .btn-delete { padding: 6px 10px !important; height: 34px !important; font-size: 14px !important; border-radius: 6px !important; }
+        .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; }
+        .btn-custom-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
+        .btn-delete { padding: 4px 8px !important; height: 34px !important; font-size: 13px !important; border-radius: 6px !important; }
         
+        .btn-phase { font-size: 11px !important; padding: 2px 5px !important; height: 26px !important; line-height: 1 !important; }
+        .btn-add-val { font-size: 11px !important; padding: 2px 6px !important; height: 26px !important; line-height: 1 !important; font-weight: bold; }
+
         h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
         h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
-        .badge-phase { font-size: 13px !important; padding: 5px 8px !important; font-weight: bold; border-radius: 6px !important; }
+        .badge-phase { font-size: 12px !important; padding: 4px 6px !important; font-weight: bold; border-radius: 6px !important; }
         
         .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
         .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
@@ -191,7 +196,7 @@ HTML_TEMPLATE = """
                 <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
                 <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="แนล" required></div>
                 <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="นาที (-5)"></div>
-                <div class="col-3"><button type="submit" class="btn btn-warning btn-custom-sm w-100" style="height: 38px !important;">➕ บันทึก</button></div>
+                <div class="col-3"><button type="submit" class="btn btn-warning btn-custom-sm w-100" style="height: 34px !important;">➕ บันทึก</button></div>
             </form>
         </div>
 
@@ -208,15 +213,15 @@ HTML_TEMPLATE = """
                     {% if item.is_dead %}
                     <span class="badge bg-secondary badge-phase">[💀 ตายแล้ว]</span>
                     {% else %}
-                    <span class="badge bg-danger badge-phase">เข้าเฟส {{ item.minutes_passed }} น.</span>
+                    <span class="badge bg-danger badge-phase">เฟส {{ item.phase_val }} ({{ item.minutes_passed }}น.)</span>
                     {% endif %}
                 </div>
                 <div class="col-boss-action">
-                    <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">ใส่เวลาใหม่</button>
+                    <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">เวลาใหม่</button>
                     {% if item.is_dead %}
                     <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-warning btn-custom-sm" title="ยกเลิกสถานะตาย">🔄</button>
                     {% else %}
-                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;" title="ทำเครื่องหมายว่าบอสตายแล้ว">💀 Dead</button>
+                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;" title="ทำเครื่องหมายว่าบอสตายแล้ว">💀</button>
                     {% endif %}
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
                 </div>
@@ -231,8 +236,19 @@ HTML_TEMPLATE = """
         <div class="d-flex flex-column gap-1" id="upcoming-container">
             {% for item in active_spawns_sorted %}
             <div class="boss-card upcoming-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info"><span class="text-success boss-title">⏳ บอส {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
-                <div class="col-boss-center"><span class="text-warning time-text">{{ item.t_str[11:16] }}</span></div>
+                <div class="col-boss-info"><span class="text-success boss-title">⏳ {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
+                <div class="col-boss-center flex-column align-items-start justify-content-center">
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <span class="text-warning time-text me-1">{{ item.t_str[11:16] }}</span>
+                        <button onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)" class="btn btn-warning btn-add-val">+0.2</button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 1.0)" class="btn btn-phase {% if item.phase_val == 1.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F1</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 2.0)" class="btn btn-phase {% if item.phase_val == 2.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F2</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 3.0)" class="btn btn-phase {% if item.phase_val == 3.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F3</button>
+                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 4.0)" class="btn btn-phase {% if item.phase_val == 4.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F4</button>
+                    </div>
+                </div>
                 <div class="col-boss-action">
                     <div class="countdown-text m-0" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
                     <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
@@ -356,6 +372,14 @@ HTML_TEMPLATE = """
             } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
 
+        function setPhase(bossId, ch, phaseVal) {
+            runApi(`/set_phase/${bossId}/${ch}?phase=${phaseVal}`);
+        }
+
+        function addPhaseVal(bossId, ch, delta) {
+            runApi(`/add_phase/${bossId}/${ch}?delta=${delta}`);
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             loadRedCards();
             const savedMode = getCookie('tosm_filter_mode') || 'all';
@@ -447,6 +471,7 @@ def index():
     boss_db = update_boss_statuses()
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
+    boss_phases = boss_db.get("boss_phases", {})
 
     in_phase_list = []
     for key, t_str in boss_db["in_phase"].items():
@@ -464,11 +489,12 @@ def index():
         except: boss_level = -1
 
         is_dead = boss_db.get("dead_status", {}).get(key, False)
+        phase_val = round(float(boss_phases.get(key, 1.0)), 1)
 
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
             "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed,
-            "is_dead": is_dead
+            "is_dead": is_dead, "phase_val": phase_val
         })
 
     if sort_by == 'level':
@@ -489,9 +515,11 @@ def index():
         try: boss_level = int(boss_id)
         except: boss_level = -1
 
+        phase_val = round(float(boss_phases.get(key, 1.0)), 1)
+
         upcoming_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
-            "spawn_time_obj": spawn_time, "iso_time": iso_time
+            "spawn_time_obj": spawn_time, "iso_time": iso_time, "phase_val": phase_val
         })
 
     if sort_by == 'level': active_spawns_sorted = sorted(upcoming_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
@@ -501,6 +529,39 @@ def index():
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
     )
+
+@app.route('/set_phase/<boss_id>/<ch>')
+def set_phase(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        phase_val = float(request.args.get('phase', 1.0))
+        
+        if "boss_phases" not in boss_db:
+            boss_db["boss_phases"] = {}
+            
+        boss_db["boss_phases"][key] = round(phase_val, 1)
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
+
+@app.route('/add_phase/<boss_id>/<ch>')
+def add_phase(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        delta = float(request.args.get('delta', 0.2))
+        
+        if "boss_phases" not in boss_db:
+            boss_db["boss_phases"] = {}
+            
+        curr_val = float(boss_db["boss_phases"].get(key, 1.0))
+        boss_db["boss_phases"][key] = round(curr_val + delta, 1)
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 @app.route('/toggle_dead/<boss_id>/<ch>')
 def toggle_dead(boss_id, ch):
@@ -533,6 +594,8 @@ def add_boss():
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
         boss_db["dead_status"].pop(key, None)
+        if "boss_phases" in boss_db:
+            boss_db["boss_phases"].pop(key, None)
 
         base_min = 0
         if time_input:
@@ -560,6 +623,8 @@ def kill_boss(boss_id, ch):
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
         boss_db["dead_status"].pop(key, None)
+        if "boss_phases" in boss_db:
+            boss_db["boss_phases"].pop(key, None)
 
         time_input = request.args.get('time_input', '').strip()
         base_min = 0
@@ -589,6 +654,8 @@ def delete_boss(boss_id, ch):
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
         boss_db["dead_status"].pop(key, None)
+        if "boss_phases" in boss_db:
+            boss_db["boss_phases"].pop(key, None)
         save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
