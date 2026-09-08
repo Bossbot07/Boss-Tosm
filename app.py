@@ -449,9 +449,16 @@ HTML_TEMPLATE = """
             } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
 
+        /* ปรับปรุงระบบเปลี่ยนเฟส: ถึงเฟส 4 แล้วกดเปลี่ยนจะไปเป็น ON (5.0) ทันที และจาก ON จะวนกลับมา 1.0 */
         function cyclePhase(bossId, ch, currentVal) {
-            let nextVal = Math.round((currentVal + 1.0) * 10) / 10;
-            if (nextVal >= 5.0) nextVal = 1.0;
+            let nextVal = 1.0;
+            if (currentVal >= 4.0 && currentVal < 5.0) {
+                nextVal = 5.0; // Phase 4 -> ON
+            } else if (currentVal >= 5.0) {
+                nextVal = 1.0; // ON -> Phase 1
+            } else {
+                nextVal = Math.floor(currentVal) + 1.0; // Phase 1, 2, 3 -> เฟสถัดไป
+            }
             runApi(`/set_phase/${bossId}/${ch}?phase=${nextVal}`);
         }
 
