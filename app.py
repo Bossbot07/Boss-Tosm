@@ -6,10 +6,8 @@ import json
 
 app = Flask(__name__)
 
-# 🔑 ตั้งค่ารหัสผ่านเข้าเว็บตรงนี้ครับ
 WEB_PASSWORD = "223"
 
-# Config ฐานข้อมูล Upstash ของคุณ
 REDIS_URL = "https://known-raptor-158847.upstash.io"
 REDIS_TOKEN = "gQAAAAAAAmx_AAIgcDE1NzBhYTRkMTU3MDI0OGEzYjEzMmJiMjU0NTRkZDliMA"
 BKK_TZ = pytz.timezone('Asia/Bangkok')
@@ -36,8 +34,6 @@ def load_data():
                     "dead_status": data.get("dead_status", {}),
                     "boss_phases": data.get("boss_phases", {})
                 }
-        else:
-            print(f"⚠️ Upstash Error Code: {response.status_code}")
     except Exception as e:
         print(f"❌ โหลดข้อมูลล้มเหลว: {e}")
     return default_data
@@ -46,7 +42,7 @@ def save_data(data):
     try:
         headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
         payload = json.dumps(data)
-        response = requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
+        requests.post(f"{REDIS_URL}/set/tosm_boss_db", headers=headers, data=payload, timeout=5)
     except Exception as e:
         print(f"❌ บันทึกข้อมูลออนไลน์ล้มเหลว: {e}")
 
@@ -80,7 +76,6 @@ def update_boss_statuses():
         save_data(boss_db)
     return boss_db
 
-# 🔒 HTML หน้าล็อกอิน
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -90,13 +85,13 @@ LOGIN_TEMPLATE = """
     <title>TOSM Boss Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif; }
-        .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
+        body { background-color: #0b0f19 !important; color: #e0e0e0 !important; font-family: sans-serif; }
+        .login-box { max-width: 360px; margin: 100px auto 0px; background-color: #121826; padding: 25px; border-radius: 12px; border: 1px solid #10b981; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body class="container px-3">
     <div class="login-box text-center">
-        <h3 class="text-warning mb-4">⚔️ TOSM BOSS TRACKER</h3>
+        <h3 class="text-success mb-4">⚔️ TOSM BOSS TRACKER</h3>
         {% if error %}
         <div class="alert alert-danger py-2" style="font-size: 14px;">❌ รหัสผ่านไม่ถูกต้องครับ</div>
         {% endif %}
@@ -104,14 +99,13 @@ LOGIN_TEMPLATE = """
             <div class="mb-3">
                 <input type="password" name="pwd" class="form-control bg-dark text-white border-secondary text-center" placeholder="ใส่รหัสผ่านเพื่อเข้าใช้งาน" required autofocus>
             </div>
-            <button type="submit" class="btn btn-warning w-100 fw-bold">🔓 เข้าสู่ระบบ</button>
+            <button type="submit" class="btn btn-success w-100 fw-bold">🔓 เข้าสู่ระบบ</button>
         </form>
     </div>
 </body>
 </html>
 """
 
-# HTML UI หลัก
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -121,49 +115,106 @@ HTML_TEMPLATE = """
     <title>TOSM Boss Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212 !important; color: #e0e0e0 !important; font-family: sans-serif !important; font-size: 15px !important; }
-        .main-container { max-width: 680px !important; margin: 0 auto; }
+        body { background-color: #0b0f19 !important; color: #e0e0e0 !important; font-family: system-ui, -apple-system, sans-serif !important; font-size: 15px !important; }
+        .main-container { max-width: 520px !important; margin: 0 auto; }
         
-        .boss-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; color: #fff !important; padding: 12px 14px !important; margin-bottom: 7px !important; border-radius: 8px !important; }
-        .in-phase-bg { border-left: 6px solid #ff4757 !important; }
-        .upcoming-bg { border-left: 6px solid #2ed573 !important; }
-        .boss-dead-bg { background-color: #181818 !important; border: 1px dashed #444 !important; opacity: 0.55 !important; border-left: 6px solid #6c757d !important; }
-        
-        .col-boss-info { width: 30% !important; min-width: 100px; flex-shrink: 0; }
-        .col-boss-center { width: 35% !important; text-align: left !important; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
-        .col-boss-action { width: 35% !important; display: flex; justify-content: flex-end; align-items: center; gap: 4px; flex-shrink: 0; }
-        
-        .boss-title { font-size: 15px !important; font-weight: bold; }
-        .time-text { font-size: 15px !important; font-weight: bold; }
-        .countdown-text { font-size: 14px !important; font-weight: bold !important; color: #2ed573 !important; white-space: nowrap; }
-        
-        .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; }
-        .btn-custom-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 6px !important; }
-        .btn-delete { padding: 4px 8px !important; height: 34px !important; font-size: 13px !important; border-radius: 6px !important; }
-        
-        .btn-phase { font-size: 11px !important; padding: 2px 5px !important; height: 26px !important; line-height: 1 !important; }
-        .btn-add-val { font-size: 11px !important; padding: 2px 6px !important; height: 26px !important; line-height: 1 !important; font-weight: bold; }
+        /* Widget Style ในภาพ */
+        .boss-card-inphase {
+            background-color: #0d1322 !important;
+            border: 2px solid #10b981 !important;
+            border-radius: 18px !important;
+            padding: 14px 18px !important;
+            margin-bottom: 12px !important;
+            position: relative;
+        }
 
-        h2 { font-size: 22px !important; margin: 0 !important; font-weight: bold !important; }
-        h4 { font-size: 16px !important; margin-top: 16px !important; margin-bottom: 8px !important; font-weight: bold !important; }
+        .boss-card-upcoming {
+            background-color: #111827 !important;
+            border: 1px solid #1f2937 !important;
+            border-radius: 12px !important;
+            padding: 10px 14px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .pill-badge {
+            border: 1.5px solid #10b981;
+            color: #ffffff;
+            font-weight: 800;
+            border-radius: 50px;
+            padding: 2px 14px;
+            font-size: 14px;
+            display: inline-block;
+        }
+
+        .phase-display {
+            font-size: 20px;
+            font-weight: 800;
+            color: #38bdf8;
+            border: 2px solid #0284c7;
+            border-radius: 50px;
+            padding: 2px 14px;
+            cursor: pointer;
+            background: #082f49;
+            user-select: none;
+        }
+        .phase-display:hover { background: #0c4a6e; }
+
+        .btn-plus-two {
+            border: 1px solid #334155;
+            background-color: #1e293b;
+            color: #ffffff;
+            border-radius: 50px;
+            padding: 3px 12px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .btn-plus-two:hover { background-color: #334155; }
+
+        .elapsed-timer {
+            font-size: 26px;
+            font-weight: 800;
+            color: #a7f3d0;
+            font-family: monospace;
+            letter-spacing: -0.5px;
+        }
+
+        .btn-reset-time {
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #94a3b8;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            font-size: 12px;
+        }
+        .btn-reset-time:hover { color: #fff; background: #334155; }
+
+        .form-control-sm, .form-select-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; }
+        .btn-custom-sm { font-size: 13px !important; padding: 4px 8px !important; height: 34px !important; line-height: 1.2 !important; font-weight: bold !important; border-radius: 8px !important; }
+
+        .panel-box { background-color: #111827; padding: 10px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 10px; }
+        .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
+        .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; }
         
-        .modal { z-index: 99999 !important; background-color: rgba(0,0,0,0.6) !important; }
-        .panel-box { background-color: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 10px; }
-        .red-badge-item { display: inline-flex; align-items: center; background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
-        .red-badge-delete { background: none; border: none; color: white; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0; font-size: 12px; }
-        .red-badge-delete:hover { color: #ffcccc; }
+        .close-btn { position: absolute; top: 12px; right: 14px; color: #64748b; cursor: pointer; font-size: 14px; }
+        .close-btn:hover { color: #ef4444; }
     </style>
 </head>
 <body class="container-fluid px-2 py-2">
     <div class="main-container">
-        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
-            <h2 class="text-warning">⚔️ TOSM BOSS</h2>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="text-success fw-bold m-0">⚔️ TOSM BOSS</h3>
             <div class="d-flex gap-2 align-items-center">
-                <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)" style="width: auto;">
+                <select id="sortSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="changeSortOrder(this.value)">
                     <option value="time" {% if current_sort == 'time' %}selected{% endif %}>🕒 เวลาเกิด</option>
                     <option value="level" {% if current_sort == 'level' %}selected{% endif %}>⚔️ เลเวลบอส</option>
                 </select>
-                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important; height:auto !important;">🔒 ออก</a>
+                <a href="/logout" class="btn btn-outline-secondary btn-custom-sm py-1 px-2" style="font-size:12px !important;">🔒 ออก</a>
             </div>
         </div>
 
@@ -171,104 +222,94 @@ HTML_TEMPLATE = """
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-all" onclick="setMode('all')">👁️ ทั้งหมด</button>
                 <button class="btn btn-outline-light btn-custom-sm flex-grow-1" id="btn-filter-under100" onclick="setMode('under100')">📉 เลเวล ≤ 100</button>
-                <button class="btn btn-outline-danger btn-custom-sm flex-grow-1" id="btn-filter-redcard" onclick="setMode('redcard')">🔴 เฉพาะการ์ดแดง</button>
+                <button class="btn btn-outline-danger btn-custom-sm flex-grow-1" id="btn-filter-redcard" onclick="setMode('redcard')">🔴 การ์ดแดง</button>
             </div>
-            
             <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-secondary">
-                <span class="text-info fw-bold" style="font-size: 14px; white-space: nowrap;">🎯 เลเวล:</span>
-                <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="พิมพ์กรองเลเวลที่ต้องการ..." oninput="handleMinLevelInput(this.value)">
-                <span class="text-muted fw-bold" style="font-size: 14px;">+</span>
+                <span class="text-info fw-bold" style="font-size: 13px;">🎯 กรองเลเวลขั้นต่ำ:</span>
+                <input type="number" id="levelFilterInput" class="form-control form-control-sm bg-dark text-warning border-info fw-bold text-center" placeholder="ใส่เลเวล..." oninput="handleMinLevelInput(this.value)">
             </div>
         </div>
 
         <div class="panel-box">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="text-danger fw-bold" style="font-size: 14px; white-space: nowrap;">📌 เพิ่มกลุ่มการ์ดแดง:</span>
-                <input type="number" id="redCardInput" class="form-control form-control-sm bg-dark text-white border-danger text-center" placeholder="เลเวล เช่น 120" style="max-width: 120px;">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-danger fw-bold" style="font-size: 13px; white-space: nowrap;">📌 เพิ่มการ์ดแดง:</span>
+                <input type="number" id="redCardInput" class="form-control form-control-sm bg-dark text-white border-danger text-center" placeholder="เลเวล">
                 <button onclick="addRedCard()" class="btn btn-danger btn-custom-sm">➕ เพิ่ม</button>
             </div>
-            <div id="redCardListContainer" class="d-flex flex-wrap pt-1"></div>
+            <div id="redCardListContainer" class="d-flex flex-wrap pt-2"></div>
         </div>
         
-        <div class="boss-card p-2 mb-3">
+        <div class="panel-box">
             <form id="addBossForm" onsubmit="submitAddForm(event)" class="row g-2">
-                <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="เลขบอส" required></div>
-                <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="แนล" required></div>
-                <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="นาที (-5)"></div>
-                <div class="col-3"><button type="submit" class="btn btn-warning btn-custom-sm w-100" style="height: 34px !important;">➕ บันทึก</button></div>
+                <div class="col-3"><input type="text" id="boss_id" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="เลเวล" required></div>
+                <div class="col-3"><input type="number" id="ch" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="Ch." required></div>
+                <div class="col-3"><input type="text" id="time_input" class="form-control form-control-sm bg-dark text-white border-secondary text-center" placeholder="-5 หรือ 1.30"></div>
+                <div class="col-3"><button type="submit" class="btn btn-success btn-custom-sm w-100">➕ เพิ่ม</button></div>
             </form>
         </div>
 
-        <h4 class="text-danger">🚨 เข้าเฟสแล้ว (In Phase)</h4>
-        <div class="d-flex flex-column gap-1 mb-4" id="in-phase-container">
+        <h5 class="text-danger fw-bold mt-3 mb-2">🚨 เข้าเฟสแล้ว (In Phase)</h5>
+        <div class="d-flex flex-column" id="in-phase-container">
             {% for item in in_phase_list_sorted %}
-            <div class="boss-card {% if item.is_dead %}boss-dead-bg{% else %}in-phase-bg{% endif %} d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info">
-                    <span class="{% if item.is_dead %}text-secondary{% else %}text-danger{% endif %} boss-title">
-                        {% if item.is_dead %}💀 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% else %}🔥 บอส {{ item.boss_id }} [Ch.{{ item.ch }}]{% endif %}
+            <div class="boss-card-inphase boss-item-row" data-boss-level="{{ item.boss_level }}">
+                <span class="close-btn" onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')">✕</span>
+                
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="pill-badge">LV.{{ item.boss_id }}</span>
+                    <span class="pill-badge">CH.{{ item.ch }}</span>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="text-secondary fw-bold" style="font-size: 14px;">Phase :</span>
+                    <span class="phase-display" onclick="cyclePhase('{{ item.boss_id }}', '{{ item.ch }}', {{ item.phase_val }})">
+                        {{ item.phase_main }}<span style="font-size: 16px;">.{{ item.phase_sub }}</span>
                     </span>
-                </div>
-                <div class="col-boss-center flex-column align-items-start justify-content-center">
-                    {% if item.is_dead %}
-                    <span class="badge bg-secondary" style="font-size: 12px;">[💀 ตายแล้ว]</span>
-                    {% else %}
-                    <div class="d-flex align-items-center gap-1 mb-1">
-                        <span class="text-warning fw-bold" style="font-size:13px;">เฟส {{ item.phase_val }}</span>
-                        <span class="text-muted" style="font-size:11px;">({{ item.minutes_passed }}น.)</span>
-                        <button onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)" class="btn btn-warning btn-add-val">+0.2</button>
+                    <button class="btn-plus-two" onclick="addPhaseVal('{{ item.boss_id }}', '{{ item.ch }}', 0.2)">+.2</button>
+                    
+                    <div class="ms-auto">
+                        <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">เวลาใหม่</button>
                     </div>
-                    <div class="btn-group btn-group-sm">
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 1.0)" class="btn btn-phase {% if item.phase_val == 1.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F1</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 2.0)" class="btn btn-phase {% if item.phase_val == 2.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F2</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 3.0)" class="btn btn-phase {% if item.phase_val == 3.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F3</button>
-                        <button onclick="setPhase('{{ item.boss_id }}', '{{ item.ch }}', 4.0)" class="btn btn-phase {% if item.phase_val == 4.0 %}btn-info text-dark fw-bold{% else %}btn-outline-secondary text-white{% endif %}">F4</button>
-                    </div>
-                    {% endif %}
                 </div>
-                <div class="col-boss-action">
-                    <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm">เวลาใหม่</button>
-                    {% if item.is_dead %}
-                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-warning btn-custom-sm" title="ยกเลิกสถานะตาย">🔄</button>
-                    {% else %}
-                    <button onclick="runApi('/toggle_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-secondary btn-custom-sm fw-bold" style="color: #bbb;" title="ทำเครื่องหมายว่าบอสตายแล้ว">💀</button>
-                    {% endif %}
-                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
+
+                <div class="d-flex align-items-center gap-2">
+                    <span class="elapsed-timer" data-spawn-iso="{{ item.iso_time }}">+00:00</span>
+                    <button class="btn-reset-time" title="รีเซ็ตเวลา" onclick="killBossDirect('{{ item.boss_id }}', '{{ item.ch }}')">↺</button>
                 </div>
             </div>
             {% else %}
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสตรงตามตัวกรอง...</p>
         </div>
 
-        <h4 class="text-success">⏳ กำลังรอเกิด (Upcoming)</h4>
-        <div class="d-flex flex-column gap-1" id="upcoming-container">
+        <h5 class="text-success fw-bold mt-4 mb-2">⏳ กำลังรอเกิด (Upcoming)</h5>
+        <div class="d-flex flex-column" id="upcoming-container">
             {% for item in active_spawns_sorted %}
-            <div class="boss-card upcoming-bg d-flex align-items-center m-0 boss-item-row" data-boss-level="{{ item.boss_level }}">
-                <div class="col-boss-info"><span class="text-success boss-title">⏳ {{ item.boss_id }} [Ch.{{ item.ch }}]</span></div>
-                <div class="col-boss-center align-items-center">
-                    <span class="text-warning time-text me-2">{{ item.t_str[11:16] }}</span>
+            <div class="boss-card-upcoming d-flex align-items-center justify-content-between boss-item-row" data-boss-level="{{ item.boss_level }}">
+                <div>
+                    <span class="text-success fw-bold me-2">LV.{{ item.boss_id }} [Ch.{{ item.ch }}]</span>
+                    <span class="text-warning fw-bold" style="font-size: 13px;">{{ item.t_str[11:16] }}</span>
                 </div>
-                <div class="col-boss-action">
-                    <div class="countdown-text me-1" data-target-time="{{ item.iso_time }}">คำนวณ...</div>
-                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm btn-delete">🗑️</button>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-info fw-bold" data-target-time="{{ item.iso_time }}" style="font-size: 14px;">คำนวณ...</span>
+                    <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-2" style="height:28px !important;">🗑️</button>
                 </div>
             </div>
             {% else %}
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 14px;">ไม่มีบอสรอเกิด...</p>
             {% endfor %}
-            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสที่ตรงกับเงื่อนไขตัวกรอง...</p>
+            <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 14px;">ไม่มีบอสตรงตามตัวกรอง...</p>
         </div>
     </div>
 
     <div class="modal fade" id="killModal" tabindex="-1" data-bs-backdrop="false" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm" style="max-width: 320px;">
-            <div class="modal-content bg-dark text-white border-secondary" style="border: 1px solid #555 !important;">
+            <div class="modal-content bg-dark text-white border-secondary">
                 <div class="modal-body p-3">
                     <input type="hidden" id="modal-boss-id"><input type="hidden" id="modal-ch">
                     <div class="mb-3">
                         <label class="form-label mb-2" style="font-size: 14px; font-weight: bold;">ใส่เวลาเกิดรอบถัดไป (นาที)</label>
-                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 15px; height: 42px;">
+                        <input type="text" id="modal-time-input" class="form-control bg-secondary text-white border-0 text-center" placeholder="ว่าง=ตอนนี้, หรือใส่ -5, 1.30" onkeydown="handleModalKeyDown(event)" style="font-size: 15px; height: 42px;">
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                         <button type="button" class="btn btn-secondary btn-custom-sm" data-bs-dismiss="modal">ยกเลิก</button>
@@ -303,7 +344,7 @@ HTML_TEMPLATE = """
         function addRedCard() {
             const input = document.getElementById('redCardInput');
             const lvl = parseInt(input.value);
-            if (!lvl || lvl <= 0) return alert('กรุณากรอกเลเวลบอสที่ถูกต้องครับ');
+            if (!lvl || lvl <= 0) return alert('กรุณากรอกเลเวลบอสที่ถูกต้อง');
             if (!redCards.includes(lvl)) {
                 redCards.push(lvl); redCards.sort((a, b) => b - a);
                 saveRedCards(); renderRedCards(); applyAllFilters();
@@ -319,7 +360,7 @@ HTML_TEMPLATE = """
         function renderRedCards() {
             const container = document.getElementById('redCardListContainer');
             container.innerHTML = "";
-            if (redCards.length === 0) { container.innerHTML = '<span class="text-muted" style="font-size: 13px;">ไม่มีเลเวลการ์ดแดงในรายการ...</span>'; return; }
+            if (redCards.length === 0) { container.innerHTML = '<span class="text-muted" style="font-size: 12px;">ไม่มีรายการการ์ดแดง...</span>'; return; }
             redCards.forEach(lvl => {
                 const badge = document.createElement('span'); badge.className = 'red-badge-item';
                 badge.innerHTML = `Lv.${lvl} <button class="red-badge-delete" onclick="deleteRedCard(${lvl})">×</button>`;
@@ -352,8 +393,8 @@ HTML_TEMPLATE = """
                 let passMinLevel = true;
                 if (minLevelFilter > 0 && lvl < minLevelFilter) passMinLevel = false;
 
-                if (passMode && passMinLevel) { row.classList.remove('d-none'); row.classList.add('d-flex'); }
-                else { row.classList.remove('d-flex'); row.classList.add('d-none'); }
+                if (passMode && passMinLevel) { row.classList.remove('d-none'); }
+                else { row.classList.add('d-none'); }
             });
             checkContainerEmpty('in-phase-container'); checkContainerEmpty('upcoming-container');
         }
@@ -372,12 +413,18 @@ HTML_TEMPLATE = """
             } else { if(emptyNotice) emptyNotice.classList.add('d-none'); if(filterNotice) filterNotice.classList.add('d-none'); }
         }
 
-        function setPhase(bossId, ch, phaseVal) {
-            runApi(`/set_phase/${bossId}/${ch}?phase=${phaseVal}`);
+        function cyclePhase(bossId, ch, currentVal) {
+            let nextVal = Math.round((currentVal + 1.0) * 10) / 10;
+            if (nextVal > 4.8) nextVal = 1.0;
+            runApi(`/set_phase/${bossId}/${ch}?phase=${nextVal}`);
         }
 
         function addPhaseVal(bossId, ch, delta) {
             runApi(`/add_phase/${bossId}/${ch}?delta=${delta}`);
+        }
+
+        function killBossDirect(bossId, ch) {
+            runApi(`/kill/${bossId}/${ch}?time_input=0`);
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -414,29 +461,39 @@ HTML_TEMPLATE = """
             killModal.hide(); runApi(`/kill/${bossId}/${ch}?time_input=${timeInput}`);
         }
 
-        function updateCountdowns() {
+        function updateTimers() {
             const now = new Date().getTime();
-            const elements = document.querySelectorAll('[data-target-time]');
-            let needReload = false;
-            elements.forEach(el => {
+            
+            // เดินหน้า +MM:SS
+            document.querySelectorAll('[data-spawn-iso]').forEach(el => {
+                const spawnIso = el.getAttribute('data-spawn-iso');
+                const spawnTime = new Date(spawnIso).getTime();
+                const diff = now - spawnTime;
+                if (diff >= 0) {
+                    const totalSec = Math.floor(diff / 1000);
+                    const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+                    const secs = String(totalSec % 60).padStart(2, '0');
+                    el.innerHTML = `+${mins}:${secs}`;
+                } else {
+                    el.innerHTML = `+00:00`;
+                }
+            });
+
+            // ถอยหลัง Upcoming
+            document.querySelectorAll('[data-target-time]').forEach(el => {
                 const targetIso = el.getAttribute('data-target-time');
                 const targetTime = new Date(targetIso).getTime();
                 const diff = targetTime - now;
-                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; needReload = true; }
+                if (diff <= 0) { el.innerHTML = "💥 เกิดแล้ว!"; el.style.color = "#ff4757"; }
                 else {
-                    const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                    const displayMinutes = String(minutes).padStart(2, '0');
-                    const displaySeconds = String(seconds).padStart(2, '0');
-                    if (hours > 0) el.innerHTML = `⏱️ ${hours}:${displayMinutes}:${displaySeconds}`;
-                    else el.innerHTML = `⏱️ ${displayMinutes}:${displaySeconds}`;
+                    el.innerHTML = `⏱️ ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
                 }
             });
-            if (needReload) { setTimeout(() => { window.location.reload(); }, 1000); }
         }
 
-        setInterval(updateCountdowns, 1000); updateCountdowns();
+        setInterval(updateTimers, 1000); updateTimers();
         setInterval(() => { window.location.reload(); }, 45000);
     </script>
 </body>
@@ -479,28 +536,27 @@ def index():
         boss_id, ch = key.split('-', 1)
         try:
             spawn_time = BKK_TZ.localize(datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S'))
-            diff = now - spawn_time
-            minutes_passed = int(diff.total_seconds() // 60)
-            if minutes_passed < 0: minutes_passed = 0
+            iso_time = spawn_time.isoformat()
         except:
-            spawn_time = now; minutes_passed = 0
+            spawn_time = now; iso_time = now.isoformat()
 
         try: boss_level = int(boss_id)
         except: boss_level = -1
 
-        is_dead = boss_db.get("dead_status", {}).get(key, False)
         phase_val = round(float(boss_phases.get(key, 1.0)), 1)
+        phase_str = f"{phase_val:.1f}"
+        phase_main, phase_sub = phase_str.split('.')
 
         in_phase_list.append({
             "boss_id": boss_id, "boss_level": boss_level, "ch": ch, "t_str": t_str,
-            "spawn_time_obj": spawn_time, "minutes_passed": minutes_passed,
-            "is_dead": is_dead, "phase_val": phase_val
+            "spawn_time_obj": spawn_time, "iso_time": iso_time,
+            "phase_val": phase_val, "phase_main": phase_main, "phase_sub": phase_sub
         })
 
     if sort_by == 'level':
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (x["is_dead"], -x["boss_level"], x["spawn_time_obj"]))
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
     else:
-        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (x["is_dead"], x["spawn_time_obj"]))
+        in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
 
     upcoming_list = []
     for key, t_str in boss_db["active_spawns"].items():
@@ -557,24 +613,6 @@ def add_phase(boss_id, ch):
             
         curr_val = float(boss_db["boss_phases"].get(key, 1.0))
         boss_db["boss_phases"][key] = round(curr_val + delta, 1)
-        save_data(boss_db)
-    except: pass
-    return jsonify({"status": "success"})
-
-@app.route('/toggle_dead/<boss_id>/<ch>')
-def toggle_dead(boss_id, ch):
-    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
-    try:
-        boss_db = load_data()
-        key = f"{boss_id}-{ch}"
-
-        if key in boss_db.get("dead_status", {}):
-            boss_db["dead_status"].pop(key, None)
-        else:
-            if "dead_status" not in boss_db:
-                boss_db["dead_status"] = {}
-            boss_db["dead_status"][key] = True
-
         save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
