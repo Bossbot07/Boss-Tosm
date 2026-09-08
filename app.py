@@ -144,6 +144,17 @@ HTML_TEMPLATE = """
             box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
         }
 
+        /* การ์ดสถานะ Dead (สีเทา) */
+        .boss-card-dead {
+            background-color: #1a202c !important;
+            border: 1.5px dashed #4a5568 !important;
+            border-radius: 12px !important;
+            padding: 8px 12px !important;
+            margin-bottom: 6px !important;
+            position: relative;
+            opacity: 0.8;
+        }
+
         .boss-card-upcoming {
             background-color: #111827 !important;
             border: 1px solid #1f2937 !important;
@@ -155,6 +166,16 @@ HTML_TEMPLATE = """
         .pill-badge {
             border: 1px solid #10b981;
             color: #ffffff;
+            font-weight: 700;
+            border-radius: 20px;
+            padding: 1px 8px;
+            font-size: 11px;
+            display: inline-block;
+        }
+
+        .pill-badge-dead {
+            border: 1px solid #718096;
+            color: #a0aec0;
             font-weight: 700;
             border-radius: 20px;
             padding: 1px 8px;
@@ -287,7 +308,7 @@ HTML_TEMPLATE = """
                     <span class="pill-badge">LV.{{ item.boss_id }}</span>
                     <span class="pill-badge">CH.{{ item.ch }}</span>
                     <div class="ms-auto pe-3 d-flex gap-1">
-                        <button onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;" title="ทำลาย/ตาย">💀 Dead</button>
+                        <button onclick="runApi('/mark_dead/{{ item.boss_id }}/{{ item.ch }}')" class="btn btn-outline-danger btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;" title="ทำลาย/ตาย">💀 Dead</button>
                         <button onclick="killBoss('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2" style="font-size: 11px !important; height: 22px !important;">เวลาใหม่</button>
                     </div>
                 </div>
@@ -314,6 +335,25 @@ HTML_TEMPLATE = """
             {% else %}
             <p class="text-muted ps-1 m-0 empty-text-notice" style="font-size: 12px;">ไม่มีบอสในเฟส...</p>
             {% endfor %}
+
+            <!-- รายการบอสสถานะ Dead (ย้ายมาไว้ด้านล่างสุดในกลุ่ม In Phase) -->
+            {% for item in dead_list_sorted %}
+            <div class="boss-card-dead boss-item-row" data-boss-level="{{ item.boss_level }}">
+                <span class="close-btn" onclick="runApi('/delete/{{ item.boss_id }}/{{ item.ch }}')">✕</span>
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="pill-badge-dead">LV.{{ item.boss_id }}</span>
+                        <span class="pill-badge-dead">CH.{{ item.ch }}</span>
+                        <span class="text-muted fw-bold ms-1" style="font-size: 12px;">💀 DEAD</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1 me-3">
+                        <input type="text" id="dead-time-{{ item.boss_id }}-{{ item.ch }}" class="form-control form-control-sm bg-dark text-white border-secondary text-center" style="width: 75px !important; height: 24px !important; font-size: 11px !important;" placeholder="-5 หรือ 1.30" onkeydown="if(event.key==='Enter'){ setDeadTime('{{ item.boss_id }}', '{{ item.ch }}'); }">
+                        <button onclick="setDeadTime('{{ item.boss_id }}', '{{ item.ch }}')" class="btn btn-success btn-custom-sm py-0 px-2" style="height: 24px !important; font-size: 11px !important;">ตั้งเวลา</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
             <p class="text-muted ps-1 m-0 d-none filter-empty-notice" style="font-size: 12px;">ไม่มีบอสตรงตามตัวกรอง...</p>
         </div>
 
@@ -469,6 +509,11 @@ HTML_TEMPLATE = """
             runApi(`/kill/${bossId}/${ch}?time_input=0`);
         }
 
+        function setDeadTime(bossId, ch) {
+            const val = document.getElementById(`dead-time-${bossId}-${ch}`).value;
+            runApi(`/kill/${bossId}/${ch}?time_input=${val}`);
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             loadRedCards();
             const savedMode = getCookie('tosm_filter_mode') || 'all';
@@ -569,8 +614,11 @@ def index():
     now = get_bkk_now()
     sort_by = request.cookies.get('boss_sort_order', 'time')
     boss_phases = boss_db.get("boss_phases", {})
+    dead_status = boss_db.get("dead_status", {})
 
     in_phase_list = []
+    dead_list = []
+
     for key, t_str in boss_db["in_phase"].items():
         if '-' not in str(key): continue
         boss_id, ch = key.split('-', 1)
@@ -582,6 +630,13 @@ def index():
 
         try: boss_level = int(boss_id)
         except: boss_level = -1
+
+        # แยกกรณีสถานะ Dead
+        if dead_status.get(key):
+            dead_list.append({
+                "boss_id": boss_id, "boss_level": boss_level, "ch": ch
+            })
+            continue
 
         phase_val = round(float(boss_phases.get(key, 1.0)), 1)
         is_on = phase_val >= 5.0
@@ -606,8 +661,10 @@ def index():
 
     if sort_by == 'level':
         in_phase_list_sorted = sorted(in_phase_list, key=lambda x: (-x["boss_level"], x["spawn_time_obj"]))
+        dead_list_sorted = sorted(dead_list, key=lambda x: -x["boss_level"])
     else:
         in_phase_list_sorted = sorted(in_phase_list, key=lambda x: x["spawn_time_obj"])
+        dead_list_sorted = dead_list
 
     upcoming_list = []
     for key, t_str in boss_db["active_spawns"].items():
@@ -632,8 +689,22 @@ def index():
 
     return render_template_string(
         HTML_TEMPLATE, in_phase_list_sorted=in_phase_list_sorted, 
+        dead_list_sorted=dead_list_sorted,
         active_spawns_sorted=active_spawns_sorted, current_sort=sort_by
     )
+
+@app.route('/mark_dead/<boss_id>/<ch>')
+def mark_dead(boss_id, ch):
+    if not is_authenticated(): return jsonify({"status": "unauthorized"}), 401
+    try:
+        boss_db = load_data()
+        key = f"{boss_id}-{ch}"
+        if "dead_status" not in boss_db:
+            boss_db["dead_status"] = {}
+        boss_db["dead_status"][key] = True
+        save_data(boss_db)
+    except: pass
+    return jsonify({"status": "success"})
 
 @app.route('/force_spawn/<boss_id>/<ch>')
 def force_spawn(boss_id, ch):
@@ -644,6 +715,7 @@ def force_spawn(boss_id, ch):
         now_str = get_bkk_now().strftime('%Y-%m-%d %H:%M:%S')
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"][key] = now_str
+        boss_db.get("dead_status", {}).pop(key, None)
         save_data(boss_db)
     except: pass
     return jsonify({"status": "success"})
@@ -695,7 +767,7 @@ def add_boss():
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
-        boss_db["dead_status"].pop(key, None)
+        boss_db.get("dead_status", {}).pop(key, None)
         if "boss_phases" in boss_db:
             boss_db["boss_phases"].pop(key, None)
 
@@ -724,7 +796,7 @@ def kill_boss(boss_id, ch):
         boss_db = load_data()
         key = f"{boss_id}-{ch}"
         boss_db["in_phase"].pop(key, None)
-        boss_db["dead_status"].pop(key, None)
+        boss_db.get("dead_status", {}).pop(key, None)
         if "boss_phases" in boss_db:
             boss_db["boss_phases"].pop(key, None)
 
@@ -755,7 +827,7 @@ def delete_boss(boss_id, ch):
         key = f"{boss_id}-{ch}"
         boss_db["active_spawns"].pop(key, None)
         boss_db["in_phase"].pop(key, None)
-        boss_db["dead_status"].pop(key, None)
+        boss_db.get("dead_status", {}).pop(key, None)
         if "boss_phases" in boss_db:
             boss_db["boss_phases"].pop(key, None)
         save_data(boss_db)
